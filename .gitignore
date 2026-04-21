@@ -1,0 +1,9 @@
+# PlatformIO build artifacts
+.pio/
+
+# IDE
+.vscode/
+
+# Claude Code / OMC tooling
+.claude/
+.omc/

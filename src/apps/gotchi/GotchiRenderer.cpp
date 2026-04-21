@@ -41,6 +41,8 @@ void GotchiRenderer::updateExpression() {
     if (mood == _lastMood && isTemp == _lastTemp) return;
     _lastMood = mood;
     _lastTemp = isTemp;
+    // Emotes fill the screen; base state stays compact
+    _avatar.setScale(isTemp ? 0.85f : 0.60f);
     _avatar.setColorPalette(_moodToColorPalette(mood, isTemp));
     _avatar.setExpression(_moodToExpression(mood));
     _avatar.setMouthOpenRatio(_moodToMouthOpen(mood));

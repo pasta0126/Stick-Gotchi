@@ -2,10 +2,12 @@
 #include "../../core/AppBase.h"
 #include "../../core/DisplayManager.h"
 
-// Visualises raw MPU6886 accelerometer + gyroscope data in real time.
+enum class ImuMode { ACCEL, GYRO, ORIENT };
+
 class ImuDemoApp : public AppBase {
 public:
     void inject(DisplayManager* display) { _display = display; }
+    void setMode(ImuMode mode)           { _mode = mode; }
 
     void init()                       override;
     void update(uint32_t deltaMs)     override;
@@ -19,15 +21,21 @@ public:
         }
         return false;
     }
-    const char* getName() const       override { return "IMU Demo"; }
+    const char* getName() const override {
+        switch (_mode) {
+        case ImuMode::ACCEL:  return "Accelerometer";
+        case ImuMode::GYRO:   return "Gyroscope";
+        case ImuMode::ORIENT: return "Orientation";
+        }
+        return "IMU";
+    }
 
 private:
-    DisplayManager* _display = nullptr;
+    DisplayManager* _display  = nullptr;
+    ImuMode         _mode     = ImuMode::ACCEL;
     uint32_t        _drawAccum = 0;
 
-    void _drawFrame(float ax, float ay, float az,
-                    float gx, float gy, float gz);
-    void _drawBar(int x, int y, int w, int h,
-                  float val, float minV, float maxV,
-                  uint32_t color, const char* label);
+    void _drawAccel(float ax, float ay, float az);
+    void _drawGyro(float gx, float gy, float gz);
+    void _drawOrient(float ax, float ay, float az);
 };

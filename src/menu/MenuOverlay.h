@@ -19,6 +19,10 @@ public:
     void close();
     bool isOpen() const { return _open; }
 
+    // Navigate items (called from main loop: B=next, C=prev via M5.BtnC)
+    void nextItem();
+    void prevItem();
+
     // Call from main loop while isOpen() is true.
     void update();
 

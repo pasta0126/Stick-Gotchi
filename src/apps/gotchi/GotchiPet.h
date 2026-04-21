@@ -54,6 +54,7 @@ public:
     bool      moodChanged()  const { return _moodChanged; }
     void      clearMoodChanged()   { _moodChanged = false; }
     bool      phoneBatLow()  const { return _phoneBatLow; }
+    bool      isTempMood()   const { return _tempMood != Mood::NEUTRAL; }
 
     // NVS persistence
     void save();

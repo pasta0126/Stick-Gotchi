@@ -105,6 +105,16 @@ void GotchiApp::_pollImu(uint32_t deltaMs) {
 
     // Orientation: face down = az strongly negative
     _pet.onFaceDown(az < -0.8f);
+
+    // Tilt → gaze: ax drives left/right eye movement in landscape orientation
+    static constexpr float TILT_DEAD = 0.15f;
+    static constexpr float TILT_MAX  = 0.80f;
+    float gazeH = 0.0f;
+    if (fabsf(ax) > TILT_DEAD) {
+        float norm = (fabsf(ax) - TILT_DEAD) / (TILT_MAX - TILT_DEAD);
+        gazeH = copysignf(min(1.0f, norm), ax); // negative=left, positive=right
+    }
+    _renderer.setGaze(gazeH, 0.0f);
 }
 
 // ── Microphone polling ────────────────────────────────────────────────────────

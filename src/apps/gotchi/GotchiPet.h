@@ -1,9 +1,8 @@
 #pragma once
 #include <stdint.h>
 
-// Moods match the Atom-Gotchi BLE protocol (byte 0 of state payload).
 enum class Mood : uint8_t {
-    NEUTRAL   = 0,  // renamed: Arduino.h defines DEFAULT as a macro
+    NEUTRAL   = 0,  // Arduino.h defines DEFAULT as a macro — do not rename
     HAPPY     = 1,
     SICK      = 2,
     PENSIVE   = 3,
@@ -19,42 +18,34 @@ enum class Mood : uint8_t {
 };
 
 struct PetStats {
-    uint8_t  hunger;  // 0 (starving) → 100 (full)
-    uint8_t  thirst;  // 0 (parched)  → 100 (hydrated)
-    uint8_t  energy;  // 0 (exhausted)→ 100 (rested)
-    uint16_t steps;
+    uint8_t hunger;   // 0 (starving) → 100 (full)
+    uint8_t energy;   // 0 (exhausted) → 100 (rested)
+    uint8_t health;   // 0 (dying) → 100 (healthy) — degrades from neglect
 };
 
-// All pet state and logic — no display or hardware dependencies.
-// Updated from the main loop thread via tick().
 class GotchiPet {
 public:
     void begin();
-
-    // Advance simulation by deltaMs milliseconds.
     void tick(uint32_t deltaMs);
 
-    // Commands from BLE / buttons
+    // User actions
     void feed();
-    void drink();
-    void pet();
     void play();
+    void pet();
 
-    // Sensor inputs (called by GotchiApp after reading IMU)
-    void onStep();
-    void onShake();
-    void onFaceDown(bool faceDown);
-    void onSoundEvent();
-    void setContext(uint8_t hour, int8_t tempC);
-    void setPhoneBatteryLow(bool low);
+    // Sensor inputs
+    void onShake(uint8_t intensity);   // 0=soft 1=medium 2=hard 3=violent
+    void onNoiseLevel(uint8_t db);     // ambient dB reading from mic task
+    void setHour(uint8_t hour);        // RTC hour — drives sleep schedule
 
     // Readers
-    Mood      mood()         const { return _mood; }
-    PetStats  stats()        const { return _stats; }
-    bool      moodChanged()  const { return _moodChanged; }
-    void      clearMoodChanged()   { _moodChanged = false; }
-    bool      phoneBatLow()  const { return _phoneBatLow; }
-    bool      isTempMood()   const { return _tempMood != Mood::NEUTRAL; }
+    Mood      mood()        const { return _mood; }
+    PetStats  stats()       const { return _stats; }
+    bool      moodChanged() const { return _moodChanged; }
+    void      clearMoodChanged()  { _moodChanged = false; }
+    bool      isTempMood()  const { return _tempMood != Mood::NEUTRAL; }
+    bool      isSleeping()  const { return _sleeping; }
+    bool      isDead()      const { return _dead; }
 
     // NVS persistence
     void save();
@@ -65,28 +56,29 @@ private:
     Mood     _mood        = Mood::NEUTRAL;
     bool     _moodChanged = false;
 
-    // Temporary mood override (expires after _moodExpiry ms)
     Mood     _tempMood    = Mood::NEUTRAL;
     uint32_t _moodExpiry  = 0;
 
-    // Internal counters
-    uint32_t _decayAccum   = 0;    // accumulates ms for decay tick
-    uint32_t _petClicksTs  = 0;    // timestamp of first pet click
-    int      _petClicks    = 0;
-    bool     _faceDown     = false;
-    uint32_t _faceDownTs   = 0;
-    bool     _phoneBatLow  = false;
-    uint8_t  _hour         = 12;
-    int8_t   _tempC        = 20;
+    bool     _sleeping    = false;
+    bool     _dead        = false;
+    uint32_t _lowHealthMs = 0;   // time spent at health=0 (death timer)
 
-    uint32_t _saveAccum    = 0;
+    uint8_t  _hour        = 12;
 
-    static constexpr uint32_t DECAY_INTERVAL_MS = 10000; // 10 s per decay tick
-    static constexpr uint32_t SAVE_INTERVAL_MS  = 300000; // save every 5 min
-    static constexpr uint8_t  DECAY_HUNGER      = 1;
-    static constexpr uint8_t  DECAY_THIRST      = 2;
-    static constexpr uint8_t  DECAY_ENERGY      = 1;
+    uint32_t _decayAccum  = 0;
+    uint32_t _saveAccum   = 0;
+
+    uint32_t _petClicksTs = 0;
+    int      _petClicks   = 0;
+
+    static constexpr uint32_t DECAY_INTERVAL_MS  = 10000;   // 10s per decay tick
+    static constexpr uint32_t SAVE_INTERVAL_MS   = 300000;  // 5 min
+    static constexpr uint32_t DEATH_DELAY_MS      = 900000; // 15 min at health=0
+    static constexpr uint8_t  DECAY_HUNGER        = 1;
+    static constexpr uint8_t  DECAY_ENERGY        = 1;
 
     void _recalcMood();
     void _setTempMood(Mood m, uint32_t durationMs);
+    void _updateSleep();
+    void _updateHealth(uint32_t deltaMs);
 };

@@ -3,41 +3,30 @@
 
 void GotchiApp::init() {
     _pet.begin();
-
-    // Wire BLE callbacks
-    _ble->setCommandCallback([this](BleCommand cmd) {
-        switch (cmd) {
-        case BleCommand::FEED:  _pet.feed();  break;
-        case BleCommand::DRINK: _pet.drink(); break;
-        case BleCommand::PET:   _pet.pet();   break;
-        case BleCommand::PLAY:  _pet.play();  break;
-        }
-    });
-    _ble->setBatteryCallback([this](uint8_t /*level*/, bool charging) {
-        _pet.setPhoneBatteryLow(!charging);
-    });
-    _ble->setContextCallback([this](uint8_t hour, int8_t tempC) {
-        _pet.setContext(hour, tempC);
-    });
-
-    _ble->start("StickGotchi");
     _renderer.start(&_pet);
-
     M5.Mic.begin();
-    Serial.println("[GotchiApp] init");
+    _actionBarVisible = true;
+    _actionBarHideMs  = millis() + 10000;
 }
 
 void GotchiApp::update(uint32_t deltaMs) {
+    // Sync RTC hour into pet
+    auto dt = M5.Rtc.getDateTime();
+    _pet.setHour(dt.time.hours);
+
     _pet.tick(deltaMs);
     _pollImu(deltaMs);
     _pollMic(deltaMs);
     _renderer.updateExpression();
-    _syncBle();
+
+    // Auto-hide action bar after inactivity
+    if (_actionBarVisible && millis() > _actionBarHideMs) {
+        _actionBarVisible = false;
+    }
 }
 
 void GotchiApp::suspend() {
     _renderer.suspend();
-    // Keep BLE running so the Android app stays aware the gotchi is paused.
 }
 
 void GotchiApp::resume() {
@@ -45,57 +34,73 @@ void GotchiApp::resume() {
 }
 
 void GotchiApp::destroy() {
-    _pet.save(); // persist stats before shutting down
+    _pet.save();
     _renderer.stop();
-    _ble->stop();
 }
 
 bool GotchiApp::onInput(const InputEvent& e) {
-    if (e.button == ButtonId::A) {
-        _pet.pet();
-        return true;
-    }
     if (e.button == ButtonId::B && e.action == ButtonAction::SHORT_PRESS) {
-        _pet.play();
+        _cycleAction();
         return true;
     }
-    if (e.button == ButtonId::B && e.action == ButtonAction::LONG_PRESS) {
-        if (_menuCallback) _menuCallback();
+    if (e.button == ButtonId::A && e.action == ButtonAction::SHORT_PRESS) {
+        _executeAction();
+        return true;
+    }
+    if (e.button == ButtonId::A && e.action == ButtonAction::LONG_PRESS) {
+        _actionBarVisible = !_actionBarVisible;
+        if (_actionBarVisible) _actionBarHideMs = millis() + 10000;
         return true;
     }
     return false;
+}
+
+// ── Action bar ────────────────────────────────────────────────────────────────
+
+void GotchiApp::_cycleAction() {
+    _selectedAction = static_cast<GotchiAction>(
+        (static_cast<uint8_t>(_selectedAction) + 1) %
+        static_cast<uint8_t>(GotchiAction::COUNT)
+    );
+    _actionBarVisible = true;
+    _actionBarHideMs  = millis() + 10000;
+}
+
+void GotchiApp::_executeAction() {
+    _actionBarHideMs = millis() + 10000;
+    switch (_selectedAction) {
+    case GotchiAction::FEED:     _pet.feed();  break;
+    case GotchiAction::PLAY:     _pet.play();  break;
+    case GotchiAction::MEDICINE: /* TODO: Phase MVP */ break;
+    case GotchiAction::LIGHT:    /* TODO: Phase MVP */ break;
+    case GotchiAction::CLEAN:    /* TODO: Phase MVP */ break;
+    default: break;
+    }
 }
 
 // ── IMU polling ───────────────────────────────────────────────────────────────
 
 void GotchiApp::_pollImu(uint32_t deltaMs) {
     _imuPollAccum += deltaMs;
-    if (_imuPollAccum < 50) return; // poll at ~20 Hz
+    if (_imuPollAccum < 50) return;
     _imuPollAccum = 0;
 
     float ax, ay, az;
     M5.Imu.getAccel(&ax, &ay, &az);
-
-    // Step detection — peak-valley on acceleration magnitude
     float mag = sqrtf(ax * ax + ay * ay + az * az);
-    uint32_t now = millis();
 
-    if (!_stepHigh && mag > 1.25f && (now - _lastStepMs) > 300) {
-        _stepHigh = true;
-    }
-    if (_stepHigh && mag < 0.85f) {
-        _stepHigh   = false;
-        _lastStepMs = now;
-        _pet.onStep();
-    }
-
-    // Shake detection — large rapid changes
+    // Shake detection
     float delta = fabsf(mag - _prevAccMag);
-    if (delta > 0.8f) {
+    uint32_t now = millis();
+    if (delta > 0.5f) {
         if (_shakeCount == 0) _shakeWindowMs = now;
         _shakeCount++;
-        if (_shakeCount >= 4 && (now - _shakeWindowMs) < 600) {
-            _pet.onShake();
+        if (_shakeCount >= 3 && (now - _shakeWindowMs) < 600) {
+            // Map intensity: 3-4 hits = soft, 5-6 = medium, 7+ = hard
+            uint8_t intensity = (_shakeCount <= 4) ? 0 :
+                                (_shakeCount <= 6) ? 1 : 2;
+            if (delta > 2.0f) intensity = 3; // violent single spike
+            _pet.onShake(intensity);
             _shakeCount = 0;
         }
     } else if ((now - _shakeWindowMs) > 800) {
@@ -103,56 +108,32 @@ void GotchiApp::_pollImu(uint32_t deltaMs) {
     }
     _prevAccMag = mag;
 
-    // Orientation: face down = az strongly negative
-    _pet.onFaceDown(az < -0.8f);
-
-    // Tilt → gaze: ax drives left/right eye movement in landscape orientation
+    // Tilt → gaze
     static constexpr float TILT_DEAD = 0.15f;
     static constexpr float TILT_MAX  = 0.80f;
     float gazeH = 0.0f;
     if (fabsf(ax) > TILT_DEAD) {
         float norm = (fabsf(ax) - TILT_DEAD) / (TILT_MAX - TILT_DEAD);
-        gazeH = copysignf(min(1.0f, norm), ax); // negative=left, positive=right
+        gazeH = copysignf(min(1.0f, norm), ax);
     }
     _renderer.setGaze(gazeH, 0.0f);
 }
 
-// ── Microphone polling ────────────────────────────────────────────────────────
+// ── Mic polling ───────────────────────────────────────────────────────────────
 
 void GotchiApp::_pollMic(uint32_t deltaMs) {
     _micPollAccum += deltaMs;
-    if (_micPollAccum < 100) return; // sample at ~10 Hz
+    if (_micPollAccum < 100) return;
     _micPollAccum = 0;
 
     static int16_t buf[32];
     if (!M5.Mic.record(buf, 32, 8000)) return;
 
-    int16_t peak = 0;
-    for (auto& s : buf) {
-        int16_t v = abs(s);
-        if (v > peak) peak = v;
-    }
-    // ~3000 ≈ 9 % of int16 max; covers a sharp clap without false-triggering on speech.
-    if (peak > 3000) _pet.onSoundEvent();
-}
+    int32_t sumSq = 0;
+    for (auto& s : buf) sumSq += (int32_t)s * s;
+    float rms = sqrtf((float)sumSq / 32);
 
-// ── BLE state sync ────────────────────────────────────────────────────────────
-
-void GotchiApp::_syncBle() {
-    uint32_t now = millis();
-    bool shouldNotify = _pet.moodChanged() || (now - _lastBleNotify) >= 3000;
-    if (!shouldNotify) return;
-
-    _pet.clearMoodChanged();
-    _lastBleNotify = now;
-
-    PetStats    s = _pet.stats();
-    BleGotchiState state{};
-    state.mood   = (uint8_t)_pet.mood();
-    state.hunger = s.hunger;
-    state.thirst = s.thirst;
-    state.energy = s.energy;
-    state.steps  = s.steps;
-    state.flags  = _pet.phoneBatLow() ? 0x01 : 0x00;
-    _ble->notifyState(state);
+    // Rough dB estimate relative to int16 max (32768)
+    uint8_t db = (rms > 0) ? (uint8_t)min(100.0f, 20.0f * log10f(rms / 32768.0f) + 100.0f) : 0;
+    _pet.onNoiseLevel(db);
 }

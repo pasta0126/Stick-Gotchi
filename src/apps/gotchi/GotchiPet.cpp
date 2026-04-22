@@ -4,10 +4,9 @@
 
 void GotchiPet::begin() {
     _stats.hunger = 80;
-    _stats.thirst = 80;
     _stats.energy = 80;
-    _stats.steps  = 0;
-    load(); // overwrite defaults with saved values if they exist
+    _stats.health = 100;
+    load();
     _mood        = Mood::HAPPY;
     _moodChanged = true;
 }
@@ -15,61 +14,49 @@ void GotchiPet::begin() {
 void GotchiPet::save() {
     Preferences prefs;
     prefs.begin("gotchi", false);
-    prefs.putUChar("h", _stats.hunger);
-    prefs.putUChar("t", _stats.thirst);
-    prefs.putUChar("e", _stats.energy);
-    prefs.putUShort("s", _stats.steps);
+    prefs.putUChar("h",  _stats.hunger);
+    prefs.putUChar("e",  _stats.energy);
+    prefs.putUChar("hp", _stats.health);
     prefs.end();
-    Serial.println("[Pet] Stats saved to NVS");
 }
 
 void GotchiPet::load() {
     Preferences prefs;
     prefs.begin("gotchi", true);
-    if (!prefs.isKey("h")) { prefs.end(); return; } // first boot — keep defaults
+    if (!prefs.isKey("h")) { prefs.end(); return; }
     _stats.hunger = prefs.getUChar("h",  _stats.hunger);
-    _stats.thirst = prefs.getUChar("t",  _stats.thirst);
     _stats.energy = prefs.getUChar("e",  _stats.energy);
-    _stats.steps  = prefs.getUShort("s", _stats.steps);
+    _stats.health = prefs.getUChar("hp", _stats.health);
     prefs.end();
-    Serial.println("[Pet] Stats loaded from NVS");
 }
 
-// ── Main simulation tick ─────────────────────────────────────────────────────
+// ── Main tick ─────────────────────────────────────────────────────────────────
 
 void GotchiPet::tick(uint32_t deltaMs) {
+    if (_dead) return;
+
     uint32_t now = millis();
 
-    // Clear expired temporary mood
-    if (_tempMood != Mood::NEUTRAL && now >= _moodExpiry) {
+    if (_tempMood != Mood::NEUTRAL && now >= _moodExpiry)
         _tempMood = Mood::NEUTRAL;
-    }
 
-    // Face-down anger (30 s)
-    if (_faceDown && (now - _faceDownTs) > 30000) {
-        _setTempMood(Mood::ANGRY, 6000);
-    }
+    _updateSleep();
 
-    // Stat decay (every DECAY_INTERVAL_MS)
     _decayAccum += deltaMs;
     if (_decayAccum >= DECAY_INTERVAL_MS) {
         _decayAccum -= DECAY_INTERVAL_MS;
 
-        bool sleeping = (_mood == Mood::SLEEPING);
-
-        if (!sleeping) {
+        if (!_sleeping) {
             _stats.hunger = (_stats.hunger > DECAY_HUNGER) ? _stats.hunger - DECAY_HUNGER : 0;
-            _stats.thirst = (_stats.thirst > DECAY_THIRST) ? _stats.thirst - DECAY_THIRST : 0;
             _stats.energy = (_stats.energy > DECAY_ENERGY) ? _stats.energy - DECAY_ENERGY : 0;
         } else {
-            // Recover energy while sleeping
             _stats.energy = min(100, (int)_stats.energy + 3);
         }
     }
 
+    _updateHealth(deltaMs);
     _recalcMood();
 
-    // Periodic NVS save (every SAVE_INTERVAL_MS)
     _saveAccum += deltaMs;
     if (_saveAccum >= SAVE_INTERVAL_MS) {
         _saveAccum -= SAVE_INTERVAL_MS;
@@ -77,121 +64,159 @@ void GotchiPet::tick(uint32_t deltaMs) {
     }
 }
 
-// ── Commands ─────────────────────────────────────────────────────────────────
+// ── Actions ───────────────────────────────────────────────────────────────────
 
 void GotchiPet::feed() {
+    if (_dead) return;
     _stats.hunger = min(100, (int)_stats.hunger + 25);
     _setTempMood(Mood::HAPPY, 3000);
 }
 
-void GotchiPet::drink() {
-    _stats.thirst = min(100, (int)_stats.thirst + 25);
-    _setTempMood(Mood::HAPPY, 3000);
+void GotchiPet::play() {
+    if (_dead || _sleeping) return;
+    _stats.energy = (_stats.energy > 10) ? _stats.energy - 10 : 0;
+    _setTempMood(Mood::EXCITED, 5000);
 }
 
 void GotchiPet::pet() {
+    if (_dead) return;
     uint32_t now = millis();
     if (_petClicks == 0) _petClicksTs = now;
     _petClicks++;
 
-    // Rage: 5+ clicks in 2 s
     if (_petClicks >= 5 && (now - _petClicksTs) <= 2000) {
         _setTempMood(Mood::ANGRY, 6000);
         _petClicks = 0;
         return;
     }
-    // Happy petting: 5+ clicks in 8 s
-    if (_petClicks >= 5 && (now - _petClicksTs) <= 8000) {
-        _setTempMood(Mood::HAPPY, 4000);
+    if (_petClicks >= 3 && (now - _petClicksTs) <= 8000) {
+        _setTempMood(Mood::LAUGHING, 4000);
         _petClicks = 0;
         return;
     }
-    // Reset window if too slow
     if ((now - _petClicksTs) > 8000) _petClicks = 1;
-}
-
-void GotchiPet::play() {
-    _stats.energy = (_stats.energy > 10) ? _stats.energy - 10 : 0;
-    _setTempMood(Mood::EXCITED, 5000);
 }
 
 // ── Sensor inputs ─────────────────────────────────────────────────────────────
 
-void GotchiPet::onStep() {
-    if (_stats.steps < 65535) _stats.steps++;
-    // Walking costs a little hunger/thirst
-    if (_stats.steps % 100 == 0) {
-        if (_stats.hunger > 1) _stats.hunger--;
-        if (_stats.thirst > 1) _stats.thirst--;
+void GotchiPet::onShake(uint8_t intensity) {
+    if (_dead) return;
+    switch (intensity) {
+    case 0: // soft
+        if (_sleeping) {
+            _sleeping = false;
+            _setTempMood(Mood::HAPPY, 3000);
+        } else {
+            _setTempMood(Mood::EXCITED, 2000);
+        }
+        break;
+    case 1: // medium
+        _setTempMood(Mood::DIZZY, 4000);
+        break;
+    case 2: // hard
+        _setTempMood(Mood::SCARED, 4000);
+        if (_stats.health > 2) _stats.health -= 2;
+        break;
+    case 3: // violent
+        _setTempMood(Mood::SCARED, 6000);
+        if (_stats.health > 5) _stats.health -= 5;
+        break;
     }
 }
 
-void GotchiPet::onShake() {
-    _setTempMood(Mood::DIZZY, 4000);
-}
-
-void GotchiPet::onFaceDown(bool faceDown) {
-    if (faceDown && !_faceDown) {
-        _faceDownTs = millis();
+void GotchiPet::onNoiseLevel(uint8_t db) {
+    if (_dead) return;
+    if (db > 85) {
+        _setTempMood(Mood::STARTLED, 2000);
+    } else if (db > 70) {
+        if (_sleeping) {
+            _sleeping = false;
+        }
+        // Sustained noise handled in tick via accumulated bad mood
+        if (_tempMood == Mood::NEUTRAL && _mood != Mood::ANNOYED) {
+            _setTempMood(Mood::ANNOYED, 5000);
+        }
     }
-    _faceDown = faceDown;
 }
 
-void GotchiPet::onSoundEvent() {
-    _setTempMood(Mood::STARTLED, 2000);
+void GotchiPet::setHour(uint8_t hour) {
+    _hour = hour;
 }
 
-void GotchiPet::setContext(uint8_t hour, int8_t tempC) {
-    _hour  = hour;
-    _tempC = tempC;
+// ── Internal ──────────────────────────────────────────────────────────────────
+
+void GotchiPet::_updateSleep() {
+    bool nightTime = (_hour >= 22 || _hour < 7);
+    if (nightTime && !_sleeping) {
+        _sleeping = true;
+        _setTempMood(Mood::SLEEPING, 0); // persistent until woken
+    }
+    if (!nightTime && _sleeping && _stats.energy > 30) {
+        _sleeping = false;
+    }
+    // Low energy during day → sleep
+    if (!nightTime && !_sleeping && _stats.energy < 15) {
+        _sleeping = true;
+    }
 }
 
-void GotchiPet::setPhoneBatteryLow(bool low) {
-    _phoneBatLow = low;
-}
+void GotchiPet::_updateHealth(uint32_t deltaMs) {
+    // Neglect = any stat below 20 for extended time
+    bool neglected = (_stats.hunger < 20 || _stats.energy < 10);
+    bool nightProtection = (_hour >= 22 || _hour < 7);
 
-// ── Internal ─────────────────────────────────────────────────────────────────
+    if (neglected && !nightProtection) {
+        if (_stats.health > 0) {
+            // Slow health drain — 1 pt per minute of neglect
+            static uint32_t healthDecayAccum = 0;
+            healthDecayAccum += deltaMs;
+            if (healthDecayAccum >= 60000) {
+                healthDecayAccum -= 60000;
+                _stats.health--;
+            }
+        }
+    }
+
+    if (_stats.health == 0) {
+        _lowHealthMs += deltaMs;
+        if (_lowHealthMs >= DEATH_DELAY_MS) {
+            _dead = true;
+            save();
+        }
+    } else {
+        _lowHealthMs = 0;
+        // Slow health recovery when well-fed and rested
+        if (_stats.hunger > 70 && _stats.energy > 50 && _stats.health < 100) {
+            static uint32_t healthRecoverAccum = 0;
+            healthRecoverAccum += deltaMs;
+            if (healthRecoverAccum >= 120000) { // 1pt per 2 min
+                healthRecoverAccum -= 120000;
+                _stats.health++;
+            }
+        }
+    }
+}
 
 void GotchiPet::_recalcMood() {
-    // Temporary mood takes priority
     if (_tempMood != Mood::NEUTRAL) {
-        if (_mood != _tempMood) {
-            _mood        = _tempMood;
-            _moodChanged = true;
-        }
+        if (_mood != _tempMood) { _mood = _tempMood; _moodChanged = true; }
         return;
     }
 
     Mood next = Mood::NEUTRAL;
 
-    // Priority order (highest first):  SCARED > ANGRY > SAD > SICK > SLEEPING > PENSIVE > HAPPY
-    if (_phoneBatLow) {
-        next = Mood::SCARED;
-    } else if (_stats.hunger == 0 || _stats.thirst == 0) {
-        next = Mood::SICK;
-    } else if (_stats.hunger < 20 || _stats.thirst < 20) {
-        next = Mood::SAD;
-    } else if (_stats.energy < 15) {
-        // Night hours trigger sleep
-        bool nightTime = (_hour >= 22 || _hour < 6);
-        next = nightTime ? Mood::SLEEPING : Mood::PENSIVE;
-    } else if (_stats.hunger > 70 && _stats.thirst > 70 && _stats.energy > 70) {
-        next = Mood::HAPPY;
-    } else {
-        next = Mood::NEUTRAL;
-    }
+    if (_sleeping)              next = Mood::SLEEPING;
+    else if (_stats.health < 20) next = Mood::SICK;
+    else if (_stats.hunger < 20) next = Mood::SAD;
+    else if (_stats.energy < 20) next = Mood::PENSIVE;
+    else if (_stats.hunger > 70 && _stats.energy > 70 && _stats.health > 70)
+                                next = Mood::HAPPY;
 
-    if (_mood != next) {
-        _mood        = next;
-        _moodChanged = true;
-    }
+    if (_mood != next) { _mood = next; _moodChanged = true; }
 }
 
 void GotchiPet::_setTempMood(Mood m, uint32_t durationMs) {
     _tempMood   = m;
-    _moodExpiry = millis() + durationMs;
-    if (_mood != m) {
-        _mood        = m;
-        _moodChanged = true;
-    }
+    _moodExpiry = durationMs > 0 ? millis() + durationMs : UINT32_MAX;
+    if (_mood != m) { _mood = m; _moodChanged = true; }
 }

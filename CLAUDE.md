@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Stick-Gotchi is a Tamagotchi-style virtual pet firmware for the **M5Stick C Plus2** (ESP32-based). It features a multi-app menu system and a BLE companion protocol compatible with the Atom-Gotchi Android app.
+Stick-Gotchi is a self-contained Tamagotchi-style virtual pet firmware for the **M5Stick C Plus2** (ESP32-based). The device IS the gotchi's world — no phone app required. The gotchi lives, grows, evolves, and dies entirely on the device. It features pixel art visuals generated from a deterministic seed, a lineage/inheritance system across generations, and environmental interaction via microphone and IMU.
+
+Full design spec: `docs/GDD.md` | Technical architecture: `docs/TECH.md`
 
 ## Build
 
@@ -40,8 +42,21 @@ main.cpp
   ├── BleService      — NimBLE GATT server (start/stop per app)
   └── Apps (static instances, no heap alloc)
        ├── GotchiApp  → GotchiPet + GotchiRenderer (FreeRTOS task, Core 0)
+       │                + GotchiDNA + GotchiShake + GotchiAudio + GotchiSleep
+       ├── StatsApp   → StatsRenderer (3 tabs: status, lineage, history)
        └── ImuDemoApp → reads IMU, draws bar chart
 ```
+
+### New modules (v2)
+
+| Module | Responsibility |
+|---|---|
+| `GotchiDNA` | GotchiID (64-bit), visual seed, lineage mutation |
+| `GotchiLineage` | NVS persistence for state + 5 ancestors + heritage bonuses |
+| `GotchiShake` | IMU delta-g detection → ShakeLevel enum |
+| `GotchiAudio` | Mic RMS sampling (FreeRTOS task, Core 0) → noise events |
+| `GotchiSleep` | Day/night schedule, sleep triggers, sleep protection |
+| `GotchiSprites` | Pixel art sprite data (uint8 palette indices, per stage) |
 
 ### App lifecycle
 
@@ -73,7 +88,18 @@ Every app implements `AppBase`:
 4. Add `menu.addItem({ "My App", MenuItemType::APP, []() -> AppBase* { return &myApp; }, nullptr });`.
 5. No changes needed to any core file.
 
-## BLE Protocol (matches Atom-Gotchi Android app)
+## Button mapping (GotchiApp)
+
+| Button | Gesture | Action |
+|---|---|---|
+| Btn B | Short | Cycle active icon in action bar |
+| Btn A | Short | Execute selected action |
+| Btn A | Long | Toggle action bar visibility |
+| Btn C | Short | Open system menu |
+
+## BLE Protocol (secondary — future gotchi-to-gotchi)
+
+The device is self-contained. BLE is preserved for future gotchi-to-gotchi interaction but is not required for core gameplay.
 
 | Direction | UUID suffix | Format |
 |---|---|---|

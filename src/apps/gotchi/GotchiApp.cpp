@@ -43,6 +43,11 @@ bool GotchiApp::onInput(const InputEvent& e) {
         return true;
     }
     if (e.button == ButtonId::A && e.action == ButtonAction::SHORT_PRESS) {
+        if (_pet.isEggHatched()) {
+            _pet.restartEgg();
+            _renderer.resetHatch();
+            return true;
+        }
         _executeAction();
         return true;
     }

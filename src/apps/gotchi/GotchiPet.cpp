@@ -70,9 +70,8 @@ void GotchiPet::tick(uint32_t deltaMs) {
 
     bool stageChanged = false;
     if (_stage == LifeStage::EGG && _stageAgeMs >= STAGE_EGG_MS) {
-        _stage = LifeStage::BABY;
-        _stageAgeMs = 0;
-        stageChanged = true;
+        if (!_eggHatched) _eggHatched = true;
+        _stageAgeMs = STAGE_EGG_MS;  // clamp — wait for restart
     }
     else if (_stage == LifeStage::BABY && _stageAgeMs >= STAGE_BABY_MS) {
         _stage = LifeStage::YOUNG;
@@ -266,6 +265,16 @@ void GotchiPet::_setTempMood(Mood m, uint32_t durationMs) {
     _tempMood   = m;
     _moodExpiry = durationMs > 0 ? millis() + durationMs : UINT32_MAX;
     if (_mood != m) { _mood = m; _moodChanged = true; }
+}
+
+void GotchiPet::restartEgg() {
+    uint16_t newSeed = (uint16_t)(millis() ^ (millis() >> 5) ^ random(0xFFFF));
+    const uint8_t noParent[3] = {0, 0, 0};
+    _id          = createNewID(0, noParent, newSeed);
+    _stage       = LifeStage::EGG;
+    _stageAgeMs  = 0;
+    _eggHatched  = false;
+    save();
 }
 
 void GotchiPet::_handleDeath() {

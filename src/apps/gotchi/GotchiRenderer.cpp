@@ -70,6 +70,19 @@ void GotchiRenderer::_renderTask(void* arg) {
 }
 
 void GotchiRenderer::_updatePosition(uint32_t deltaMs) {
+    // Egg: override with dedicated motion, ignore sleep/physics
+    if (_pet->stage() == LifeStage::EGG) {
+        if (_animTag == AnimTag::HATCH) {
+            _posX = 120.0f + (float)random(-4, 4);
+            _posY = 67.0f  + (float)random(-2, 2);
+        } else {
+            float t = millis() * 0.0015f;
+            _posX = 120.0f + sinf(t) * 6.0f;
+            _posY = 67.0f  + sinf(t * 1.7f) * 2.5f;
+        }
+        return;
+    }
+
     if (_pet->isSleeping()) {
         _velX = 0.0f;
         _velY = 0.0f;
@@ -313,9 +326,15 @@ void GotchiRenderer::_drawSleepZs(int cx, int cy) {
 
 SpriteFrame GotchiRenderer::_selectSprite(LifeStage stage, GotchiBranch branch, uint8_t frame) {
     if (stage == LifeStage::EGG) {
-        return frame == 0 ?
-            SpriteFrame{SPR_EGG_F0, 12, 14, 3} :
-            SpriteFrame{SPR_EGG_F1, 12, 14, 3};
+        if (_animTag == AnimTag::HATCH) {
+            const uint8_t* hatchFrames[] = {
+                SPR_EGG_HATCH_F0, SPR_EGG_HATCH_F1,
+                SPR_EGG_HATCH_F2, SPR_EGG_HATCH_F3
+            };
+            return SpriteFrame{hatchFrames[frame % EGG_HATCH_FRAMES], EGG_W, EGG_H, 3};
+        }
+        const uint8_t* idleFrames[] = {SPR_EGG_IDLE_F0, SPR_EGG_IDLE_F1};
+        return SpriteFrame{idleFrames[frame % EGG_IDLE_FRAMES], EGG_W, EGG_H, 3};
     }
 
     if (branch == GotchiBranch::BLOB) {
@@ -384,12 +403,37 @@ void GotchiRenderer::_drawFrame() {
         uint32_t delta = now - _lastFrameMs;
         if (delta < 16) delta = 16;
         _lastFrameMs = now;
+        _animAccumMs += delta;
+        if (_animAccumMs >= FRAME_INTERVAL_MS) {
+            _animAccumMs -= FRAME_INTERVAL_MS;
+            _animFrame = (_animFrame + 1) % 2;
+        }
         _updatePosition(delta);
 
         GotchiVisual vis = decodeVisual(_pet->currentID().visual_seed);
         SpritePalette pal = _buildPalette(vis, _pet->stage(), _pet->branch());
 
-        SpriteFrame frame = _selectSprite(_pet->stage(), _pet->branch(), _animFrame);
+        // Manage egg animation state
+        if (_pet->stage() == LifeStage::EGG) {
+            if (_pet->isEggHatched()) {
+                _animTag = AnimTag::HATCH;
+                if (!_hatchDone) {
+                    _hatchAccumMs += delta;
+                    if (_hatchAccumMs >= HATCH_FRAME_MS) {
+                        _hatchAccumMs -= HATCH_FRAME_MS;
+                        if (_hatchFrame < EGG_HATCH_FRAMES - 1)
+                            _hatchFrame++;
+                        else
+                            _hatchDone = true;
+                    }
+                }
+            } else {
+                _animTag = AnimTag::IDLE;
+            }
+        }
+
+        uint8_t frameIdx = (_animTag == AnimTag::HATCH) ? _hatchFrame : _animFrame;
+        SpriteFrame frame = _selectSprite(_pet->stage(), _pet->branch(), frameIdx);
 
         int spriteX = (int)_posX - (frame.w * frame.scale) / 2;
         int spriteY = (int)_posY - (frame.h * frame.scale) / 2;
@@ -397,33 +441,32 @@ void GotchiRenderer::_drawFrame() {
 
         _drawSprite(frame.data, frame.w, frame.h, spriteX, spriteY, frame.scale, pal);
 
-        if (_pet->mood() != Mood::NEUTRAL) {
+        if (_pet->mood() != Mood::NEUTRAL && _pet->stage() != LifeStage::EGG) {
             _drawEmote(_pet->mood(), (int)_posX, spriteY - 2);
         }
 
-        if (_pet->isSleeping()) {
+        if (_pet->isSleeping() && _pet->stage() != LifeStage::EGG) {
             _drawSleepZs((int)_posX + 10, spriteY);
         }
 
         _drawStatsBar();
-        _drawActionBar(_selectedAction, _actionBarVisible);
+        if (_pet->stage() == LifeStage::EGG && _hatchDone) {
+            _drawHatchPrompt();
+        } else {
+            _drawActionBar(_selectedAction, _actionBarVisible);
+        }
     }
 
     _canvas->pushSprite(0, 0);
     _display->release();
 
-    uint32_t now = millis();
-    if (now - _lastFrameMs >= FRAME_INTERVAL_MS) {
-        _lastFrameMs = now;
-        _animFrame = (_animFrame + 1) % 2;
-    }
 }
 
 GotchiRenderer::SpritePalette GotchiRenderer::_buildPalette(const GotchiVisual& vis, LifeStage stage, GotchiBranch branch) {
     SpritePalette pal;
 
     pal.transparent = 0x0000;
-    pal.white = 0xFFFF;
+    pal.accent = 0xFFFF;
 
     uint8_t sat_primary = 200;
     uint8_t val_primary = 220;
@@ -431,10 +474,10 @@ GotchiRenderer::SpritePalette GotchiRenderer::_buildPalette(const GotchiVisual& 
     uint8_t val_secondary = 240;
 
     if (stage == LifeStage::EGG) {
-        sat_primary = 120;
-        val_primary = 180;
-        sat_secondary = 100;
-        val_secondary = 200;
+        sat_primary   = 210;
+        val_primary   = 200;
+        sat_secondary = 180;
+        val_secondary = 220;
     } else if (stage == LifeStage::ADULT) {
         sat_primary = 220;
         val_primary = 240;
@@ -442,8 +485,8 @@ GotchiRenderer::SpritePalette GotchiRenderer::_buildPalette(const GotchiVisual& 
         val_secondary = 255;
     }
 
-    uint8_t hue_primary = vis.hue_primary * 11;
-    uint8_t hue_secondary = vis.hue_secondary * 11;
+    uint8_t hue_primary   = vis.hue_primary;
+    uint8_t hue_secondary = vis.hue_secondary;
 
     if (branch == GotchiBranch::PLANT) {
         hue_primary = 5 + (millis() / 10000) % 6;
@@ -460,6 +503,21 @@ GotchiRenderer::SpritePalette GotchiRenderer::_buildPalette(const GotchiVisual& 
     return pal;
 }
 
+void GotchiRenderer::resetHatch() {
+    _hatchDone    = false;
+    _hatchFrame   = 0;
+    _hatchAccumMs = 0;
+    _animTag      = AnimTag::IDLE;
+    _animFrame    = 0;
+}
+
+void GotchiRenderer::_drawHatchPrompt() {
+    _canvas->fillRect(0, 108, 240, 27, 0x0861);
+    _canvas->setTextColor(TFT_WHITE);
+    _canvas->setTextSize(1);
+    _canvas->drawCenterString("[ Btn A ]  nuevo huevo", 120, 118);
+}
+
 void GotchiRenderer::_drawSprite(const uint8_t* data, uint8_t w, uint8_t h,
                                   int x, int y, uint8_t scale, const SpritePalette& pal) {
     for (int py = 0; py < h; py++) {
@@ -472,7 +530,7 @@ void GotchiRenderer::_drawSprite(const uint8_t* data, uint8_t w, uint8_t h,
             case 1: color = pal.primary; break;
             case 2: color = pal.secondary; break;
             case 3: color = pal.dark; break;
-            case 4: color = pal.white; break;
+            case 4: color = pal.accent; break;
             default: color = pal.transparent; break;
             }
 

@@ -62,6 +62,8 @@ public:
     bool      isSleeping()  const { return _sleeping; }
     bool      isDead()      const { return _dead; }
     bool      isNewEgg()    const { return _newEggReady; }
+    bool      isEggHatched() const { return _eggHatched; }
+    void      restartEgg();
     GotchiID  currentID()   const { return _id; }
     GotchiBranch branch()   const { return _branch; }
     LifeStage    stage()    const { return _stage; }
@@ -95,6 +97,7 @@ private:
     GotchiHeritage  _heritage{};
     GotchiLineage   _lineage;
     bool            _newEggReady = false;
+    bool            _eggHatched  = false;
 
     GotchiBranch _branch      = GotchiBranch::BLOB;
     LifeStage    _stage       = LifeStage::EGG;
@@ -105,7 +108,7 @@ private:
     static constexpr uint32_t DECAY_INTERVAL_MS  = 10000;   // 10s per decay tick
     static constexpr uint32_t SAVE_INTERVAL_MS   = 300000;  // 5 min
     static constexpr uint32_t DEATH_DELAY_MS     = 900000;  // 15 min at health=0
-    static constexpr uint32_t STAGE_EGG_MS       = 3600000;    // 60 min
+    static constexpr uint32_t STAGE_EGG_MS       = 30000;       // 30s demo
     static constexpr uint32_t STAGE_BABY_MS      = 259200000;  // 72 h
     static constexpr uint32_t STAGE_YOUNG_MS     = 604800000;  // 168 h
     static constexpr uint8_t  DECAY_HUNGER       = 1;

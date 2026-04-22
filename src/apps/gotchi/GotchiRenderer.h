@@ -4,6 +4,7 @@
 #include <freertos/task.h>
 #include "GotchiPet.h"
 #include "GotchiSprites.h"
+#include "../../generated/sprites_egg.h"
 #include "../../gotchi/GotchiDNA.h"
 #include "../../core/DisplayManager.h"
 
@@ -14,6 +15,7 @@ public:
     void suspend();
     void resume();
     void stop();
+    void resetHatch();
 
     void render();
 
@@ -60,14 +62,22 @@ private:
     void _drawStatsBar();
     void _drawActionBar(uint8_t selected, bool visible);
     void _drawSleepZs(int cx, int cy);
+    void _drawHatchPrompt();
     SpriteFrame _selectSprite(LifeStage stage, GotchiBranch branch, uint8_t frame);
+
+    enum class AnimTag : uint8_t { IDLE, EAT, PLAY, SLEEP, DIE, HATCH };
+    AnimTag  _animTag      = AnimTag::IDLE;
+    bool     _hatchDone    = false;
+    uint8_t  _hatchFrame   = 0;
+    uint32_t _hatchAccumMs = 0;
+    static constexpr uint32_t HATCH_FRAME_MS = 250;
 
     struct SpritePalette {
         uint16_t transparent;
         uint16_t primary;
         uint16_t secondary;
         uint16_t dark;
-        uint16_t white;
+        uint16_t accent;
     };
 
     SpritePalette _buildPalette(const GotchiVisual& vis, LifeStage stage, GotchiBranch branch);

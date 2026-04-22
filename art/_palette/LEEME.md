@@ -2,10 +2,10 @@
 
 ## Archivos
 
-| Archivo | Usar para |
-|---------|-----------|
+| Archivo             | Usar para                                                 |
+| ------------------- | --------------------------------------------------------- |
 | `gotchi_sprite.gpl` | Sprites de gotchi (egg, baby, young, adult — las 3 ramas) |
-| `emote.gpl` | Sprites de emotes (expresiones faciales) |
+| `emote.gpl`         | Sprites de emotes (expresiones faciales)                  |
 
 ## Cómo importar
 

@@ -92,6 +92,7 @@ void setup() {
     buttons.begin(700);
 
     imuDemoApp.inject(&display);
+    gotchiApp.injectRenderer(&display);
 
     gotchiApp.setMenuCallback([]()  { menu.open(); });
     imuDemoApp.setMenuCallback([]() { menu.open(); });

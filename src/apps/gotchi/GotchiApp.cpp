@@ -1,25 +1,24 @@
 #include "GotchiApp.h"
+#include "../../core/DisplayManager.h"
 #include <M5Unified.h>
 
 void GotchiApp::init() {
     _pet.begin();
-    _renderer.start(&_pet);
+    _renderer.start(&_pet, LifeStage::EGG);
     M5.Mic.begin();
     _actionBarVisible = true;
     _actionBarHideMs  = millis() + 10000;
 }
 
 void GotchiApp::update(uint32_t deltaMs) {
-    // Sync RTC hour into pet
     auto dt = M5.Rtc.getDateTime();
     _pet.setHour(dt.time.hours);
 
     _pet.tick(deltaMs);
     _pollImu(deltaMs);
     _pollMic(deltaMs);
-    _renderer.updateExpression();
+    _renderer.setActionBarState(static_cast<uint8_t>(_selectedAction), _actionBarVisible);
 
-    // Auto-hide action bar after inactivity
     if (_actionBarVisible && millis() > _actionBarHideMs) {
         _actionBarVisible = false;
     }

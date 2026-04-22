@@ -1,5 +1,6 @@
 #pragma once
 #include "../../core/AppBase.h"
+#include "../../core/DisplayManager.h"
 #include "GotchiPet.h"
 #include "GotchiRenderer.h"
 
@@ -16,6 +17,8 @@ public:
     void destroy()                    override;
     bool onInput(const InputEvent& e) override;
     const char* getName() const       override { return "Stick Gotchi"; }
+
+    void injectRenderer(DisplayManager* display) { _renderer.inject(display); }
 
 private:
     GotchiPet      _pet;

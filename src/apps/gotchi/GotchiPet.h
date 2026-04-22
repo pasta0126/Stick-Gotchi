@@ -1,5 +1,7 @@
 #pragma once
 #include <stdint.h>
+#include "../../gotchi/GotchiDNA.h"
+#include "../../gotchi/GotchiLineage.h"
 
 enum class Mood : uint8_t {
     NEUTRAL   = 0,  // Arduino.h defines DEFAULT as a macro — do not rename
@@ -46,6 +48,8 @@ public:
     bool      isTempMood()  const { return _tempMood != Mood::NEUTRAL; }
     bool      isSleeping()  const { return _sleeping; }
     bool      isDead()      const { return _dead; }
+    bool      isNewEgg()    const { return _newEggReady; }
+    GotchiID  currentID()   const { return _id; }
 
     // NVS persistence
     void save();
@@ -71,6 +75,12 @@ private:
     uint32_t _petClicksTs = 0;
     int      _petClicks   = 0;
 
+    GotchiID        _id{};
+    GotchiAncestor  _ancestors[5]{};
+    GotchiHeritage  _heritage{};
+    GotchiLineage   _lineage;
+    bool            _newEggReady = false;
+
     static constexpr uint32_t DECAY_INTERVAL_MS  = 10000;   // 10s per decay tick
     static constexpr uint32_t SAVE_INTERVAL_MS   = 300000;  // 5 min
     static constexpr uint32_t DEATH_DELAY_MS      = 900000; // 15 min at health=0
@@ -81,4 +91,5 @@ private:
     void _setTempMood(Mood m, uint32_t durationMs);
     void _updateSleep();
     void _updateHealth(uint32_t deltaMs);
+    void _handleDeath();
 };

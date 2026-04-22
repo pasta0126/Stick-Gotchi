@@ -7,6 +7,14 @@ void GotchiPet::begin() {
     _stats.energy = 80;
     _stats.health = 100;
     load();
+    _lineage.load(_id, _ancestors, _heritage);
+
+    if (_id.generation == 0 && _id.visual_seed == 0) {
+        uint16_t initialSeed = (uint16_t)millis();
+        _id = createNewID(0, (const uint8_t[]){0, 0, 0}, initialSeed);
+        _lineage.save(_id, _ancestors, _heritage);
+    }
+
     _mood        = Mood::HAPPY;
     _moodChanged = true;
 }
@@ -180,8 +188,7 @@ void GotchiPet::_updateHealth(uint32_t deltaMs) {
     if (_stats.health == 0) {
         _lowHealthMs += deltaMs;
         if (_lowHealthMs >= DEATH_DELAY_MS) {
-            _dead = true;
-            save();
+            _handleDeath();
         }
     } else {
         _lowHealthMs = 0;
@@ -219,4 +226,30 @@ void GotchiPet::_setTempMood(Mood m, uint32_t durationMs) {
     _tempMood   = m;
     _moodExpiry = durationMs > 0 ? millis() + durationMs : UINT32_MAX;
     if (_mood != m) { _mood = m; _moodChanged = true; }
+}
+
+void GotchiPet::_handleDeath() {
+    _dead = true;
+
+    GotchiAncestor dying{};
+    dying.id = _id;
+    dying.days_lived = (uint16_t)(millis() / 86400000UL);
+    dying.cause_of_death = (_stats.hunger < 10) ? 0 : 1;
+    dying.avg_mood_pct = 50;
+    dying.avg_health_pct = _stats.health;
+
+    GotchiHeritage newHeritage = GotchiLineage::computeHeritage(dying, _ancestors);
+    _lineage.shiftAncestors(_ancestors, dying);
+
+    uint32_t rng = millis() ^ ((uint32_t)_id.visual_seed << 16);
+    uint16_t newSeed = mutateSeed(_id.visual_seed, rng);
+    uint8_t newGen = _id.generation + 1;
+    GotchiID newID = createNewID(newGen, _id.parent_id, newSeed);
+
+    _id = newID;
+    _heritage = newHeritage;
+    _lineage.save(_id, _ancestors, _heritage);
+    _newEggReady = true;
+
+    save();
 }

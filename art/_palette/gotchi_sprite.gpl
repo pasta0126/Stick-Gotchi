@@ -1,0 +1,9 @@
+GIMP Palette
+Name: GotchiSprite
+Columns: 5
+#
+255   0 255	00_transparent
+  0   0 255	01_primary
+  0 255 255	02_secondary
+ 64  64  64	03_dark
+255 255   0	04_accent

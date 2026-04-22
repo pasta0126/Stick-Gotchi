@@ -1,0 +1,8 @@
+GIMP Palette
+Name: GotchiEmote
+Columns: 4
+#
+255   0 255	00_transparent
+255 255 255	01_white
+  0   0   0	02_black
+255  64  64	03_red

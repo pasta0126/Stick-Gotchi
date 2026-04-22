@@ -1,13 +1,19 @@
 #include "GotchiRenderer.h"
 
-void GotchiRenderer::start(GotchiPet* pet, LifeStage stage) {
+void GotchiRenderer::start(GotchiPet* pet) {
     _pet     = pet;
-    _stage   = stage;
     _started = true;
     _suspended = false;
     _lastFrameMs = 0;
     _animFrame = 0;
     _animAccumMs = 0;
+
+    _posX = 120.0f;
+    _posY = 62.0f;
+    _velX = 0.5f;
+    _velY = 0.2f;
+    _moveAccumMs = 0;
+    _nextDirChangeMs = 2000;
 
     xTaskCreatePinnedToCore(
         _renderTask,
@@ -53,10 +59,6 @@ void GotchiRenderer::setActionBarState(uint8_t selected, bool visible) {
     _actionBarVisible = visible;
 }
 
-void GotchiRenderer::setLifeStage(LifeStage stage) {
-    _stage = stage;
-}
-
 void GotchiRenderer::_renderTask(void* arg) {
     auto* self = static_cast<GotchiRenderer*>(arg);
     for (;;) {
@@ -67,286 +69,234 @@ void GotchiRenderer::_renderTask(void* arg) {
     }
 }
 
-void GotchiRenderer::_drawFrame() {
-    if (!_display || !_display->acquire(100)) return;
-
-    _canvas = &_display->canvas();
-    _canvas->fillScreen(TFT_BLACK);
-
-    if (_pet->isDead()) {
-        GotchiVisual vis = decodeVisual(_pet->currentID().visual_seed);
-        SpritePalette pal = _buildPalette(vis);
-        int cx = 120;
-        int cy = 62;
-        _drawSprite(DEATH_FRAME_SPRITE.data, DEATH_FRAME_SPRITE.w, DEATH_FRAME_SPRITE.h,
-                    cx - (DEATH_FRAME_SPRITE.w * 2) / 2, cy - (DEATH_FRAME_SPRITE.h * 2) / 2,
-                    2, pal);
-    } else {
-        _drawStatsBar();
-
-        GotchiVisual vis = decodeVisual(_pet->currentID().visual_seed);
-        SpritePalette pal = _buildPalette(vis);
-
-        uint8_t frame = _animFrame;
-        _drawBody(vis, frame);
-
-        int cx = 120;
-        int cy = 62;
-        int scale = 2;
-        if (_stage == LifeStage::EGG) scale = 3;
-        if (_stage == LifeStage::BABY) scale = 3;
-
-        _drawFace(_pet->mood(), _gazeH, _gazeV, cx, cy, scale);
-
-        if (_pet->isSleeping()) {
-            _drawSleepZs(cx, cy);
-        }
-
-        _drawActionBar();
+void GotchiRenderer::_updatePosition(uint32_t deltaMs) {
+    if (_pet->isSleeping()) {
+        _velX = 0.0f;
+        _velY = 0.0f;
+        return;
     }
 
-    _canvas->pushSprite(0, 0);
-    _display->release();
+    float baseSpeed = 0.6f;
 
-    uint32_t now = millis();
-    if (now - _lastFrameMs >= FRAME_INTERVAL_MS) {
-        _lastFrameMs = now;
-        _animFrame = (_animFrame + 1) % 2;
+    switch (_pet->mood()) {
+    case Mood::SLEEPING:
+        baseSpeed = 0.0f;
+        break;
+    case Mood::SAD:
+        baseSpeed = 0.3f;
+        break;
+    case Mood::PENSIVE:
+        baseSpeed = 0.4f;
+        break;
+    case Mood::NEUTRAL:
+        baseSpeed = 0.6f;
+        break;
+    case Mood::HAPPY:
+        baseSpeed = 1.0f;
+        break;
+    case Mood::EXCITED:
+        baseSpeed = 1.8f;
+        break;
+    case Mood::SCARED:
+        baseSpeed = 2.0f;
+        break;
+    case Mood::DIZZY:
+        baseSpeed = 1.2f;
+        break;
+    case Mood::SICK:
+        baseSpeed = 0.2f;
+        break;
+    default:
+        baseSpeed = 0.6f;
+        break;
+    }
+
+    if (_pet->mood() == Mood::SICK) {
+        _velX += (random(-10, 10) / 100.0f);
+        _velY += (random(-10, 10) / 100.0f);
+        _velX = max(-baseSpeed, min(baseSpeed, _velX));
+        _velY = max(-baseSpeed, min(baseSpeed, _velY));
+    }
+
+    if (_pet->mood() == Mood::DIZZY) {
+        uint32_t t = millis();
+        float angle = (t / 1000.0f) * 3.14159f * 2.0f;
+        _velX = cosf(angle) * baseSpeed;
+        _velY = sinf(angle) * baseSpeed * 0.5f;
+    }
+
+    if (_pet->mood() == Mood::EXCITED) {
+        _moveAccumMs += deltaMs;
+        if (_moveAccumMs >= 500) {
+            _moveAccumMs -= 500;
+            float angle = random(0, 628) / 100.0f;
+            _velX = cosf(angle) * baseSpeed;
+            _velY = sinf(angle) * baseSpeed * 0.7f;
+        }
+    }
+
+    _moveAccumMs += deltaMs;
+    if (_moveAccumMs >= _nextDirChangeMs) {
+        _moveAccumMs -= _nextDirChangeMs;
+        if (_pet->mood() != Mood::EXCITED && _pet->mood() != Mood::DIZZY) {
+            float angle = atan2f(_velY, _velX) + (random(-45, 45) / 100.0f);
+            _velX = cosf(angle) * baseSpeed;
+            _velY = sinf(angle) * baseSpeed * 0.7f;
+        }
+        _nextDirChangeMs = 2000 + random(1000, 3000);
+    }
+
+    if (_pet->branch() == GotchiBranch::LIBRE) {
+        _posY += sinf(millis() * 0.003f) * 0.5f;
+    }
+
+    _posX += _velX;
+    _posY += _velY;
+
+    if (_posX < PLAY_X0) {
+        _posX = PLAY_X0;
+        _velX = -_velX + (random(-5, 5) / 100.0f);
+    }
+    if (_posX > PLAY_X1) {
+        _posX = PLAY_X1;
+        _velX = -_velX + (random(-5, 5) / 100.0f);
+    }
+
+    if (_posY < PLAY_Y0) {
+        _posY = PLAY_Y0;
+        _velY = -_velY + (random(-5, 5) / 100.0f);
+    }
+    if (_posY > PLAY_Y1) {
+        _posY = PLAY_Y1;
+        _velY = -_velY + (random(-5, 5) / 100.0f);
     }
 }
 
-void GotchiRenderer::_drawBody(const GotchiVisual& vis, uint8_t frame) {
-    SpritePalette pal = _buildPalette(vis);
+void GotchiRenderer::_drawBackground() {
+    _canvas->fillRect(0, 18, 240, 90, 0x0640);
 
-    SpriteFrame spriteData;
-    int scale = 2;
-    int baseX = 120, baseY = 62;
+    _canvas->drawFastHLine(0, 100, 240, 0x4200);
+    _canvas->drawFastHLine(0, 101, 240, 0x2100);
 
-    switch (_stage) {
-    case LifeStage::EGG:
-        spriteData = frame == 0 ? EGG_FRAMES[0] : EGG_FRAMES[1];
-        scale = 3;
-        baseX = 120 - (spriteData.w * scale) / 2;
-        baseY = 62 - (spriteData.h * scale) / 2;
-        _drawSprite(spriteData.data, spriteData.w, spriteData.h, baseX, baseY, scale, pal);
-        break;
+    _canvas->fillRect(8, 92, 2, 8, 0x03E0);
+    _canvas->fillRect(4, 90, 4, 2, 0x07E0);
+    _canvas->fillRect(9, 87, 4, 2, 0x07E0);
 
-    case LifeStage::BABY:
-        spriteData = frame == 0 ? BABY_FRAMES[0] : BABY_FRAMES[1];
-        scale = 3;
-        baseX = 120 - (spriteData.w * scale) / 2;
-        baseY = 62 - (spriteData.h * scale) / 2;
-        _drawSprite(spriteData.data, spriteData.w, spriteData.h, baseX, baseY, scale, pal);
-        break;
+    _canvas->drawLine(228, 25, 232, 29, 0xFFE0);
+    _canvas->drawLine(232, 25, 228, 29, 0xFFE0);
+    _canvas->drawLine(230, 23, 230, 31, 0xFFE0);
 
-    case LifeStage::YOUNG:
-        spriteData = frame == 0 ? YOUNG_FRAMES[0] : YOUNG_FRAMES[1];
-        scale = 2;
-        baseX = 120 - (spriteData.w * scale) / 2;
-        baseY = 62 - (spriteData.h * scale) / 2;
-        _drawSprite(spriteData.data, spriteData.w, spriteData.h, baseX, baseY, scale, pal);
-        break;
-
-    case LifeStage::ADULT:
-        spriteData = frame == 0 ? ADULT_FRAMES[0] : ADULT_FRAMES[1];
-        scale = 2;
-        baseX = 120 - (spriteData.w * scale) / 2;
-        baseY = 62 - (spriteData.h * scale) / 2;
-        _drawSprite(spriteData.data, spriteData.w, spriteData.h, baseX, baseY, scale, pal);
-        break;
-    }
+    uint32_t t = millis() / 2000;
+    _canvas->fillRect(40 + (t % 8), 35, 1, 1, 0xFFFF);
+    _canvas->fillRect(180 - (t % 12), 55, 1, 1, 0xFFFF);
+    _canvas->fillRect(120 + (t % 6), 70, 1, 1, 0xFFFF);
 }
 
-void GotchiRenderer::_drawFace(Mood mood, float gazeH, float gazeV, int cx, int cy, int scale) {
-    int eyeOffsetX = scale * 3;
-    int eyeOffsetY = scale * 2;
+void GotchiRenderer::_drawEmote(Mood mood, int x, int y) {
+    uint16_t bubbleColor = 0xFFFF;
+    _canvas->fillRoundRect(x-6, y-12, 12, 10, 2, bubbleColor);
+    _canvas->drawRoundRect(x-6, y-12, 12, 10, 2, 0xAAAA);
 
-    int eyeL_base_x = cx - eyeOffsetX;
-    int eyeR_base_x = cx + eyeOffsetX;
-    int eyeY_base = cy - eyeOffsetY;
-
-    int eyeL_x = eyeL_base_x + (int)(gazeH * scale * 1.5f);
-    int eyeR_x = eyeR_base_x + (int)(gazeH * scale * 1.5f);
-    int eyeY = eyeY_base + (int)(gazeV * scale);
-
-    int eyeSize = scale;
-
-    GotchiVisual vis = decodeVisual(_pet->currentID().visual_seed);
-    uint8_t eyeType = vis.eye_type;
-
-    if (mood == Mood::SLEEPING) {
-        _canvas->drawLine(eyeL_x - scale, eyeY, eyeL_x + scale, eyeY, TFT_WHITE);
-        _canvas->drawLine(eyeR_x - scale, eyeY, eyeR_x + scale, eyeY, TFT_WHITE);
-    } else {
-        switch (eyeType) {
-        case 0:
-            _canvas->fillCircle(eyeL_x, eyeY, eyeSize, TFT_WHITE);
-            _canvas->fillCircle(eyeR_x, eyeY, eyeSize, TFT_WHITE);
-            break;
-
-        case 1: {
-            int dy = scale;
-            _canvas->fillTriangle(eyeL_x, eyeY - dy, eyeL_x - scale, eyeY + dy / 2, eyeL_x + scale, eyeY + dy / 2, TFT_WHITE);
-            _canvas->fillTriangle(eyeR_x, eyeY - dy, eyeR_x - scale, eyeY + dy / 2, eyeR_x + scale, eyeY + dy / 2, TFT_WHITE);
-            break;
-        }
-
-        case 2: {
-            _canvas->fillCircle(eyeL_x - scale / 2, eyeY - scale / 2, scale, TFT_WHITE);
-            _canvas->fillCircle(eyeL_x + scale / 2, eyeY - scale / 2, scale, TFT_WHITE);
-            _canvas->fillTriangle(eyeL_x - scale, eyeY + scale / 2, eyeL_x + scale, eyeY + scale / 2, eyeL_x, eyeY + scale * 2, TFT_WHITE);
-
-            _canvas->fillCircle(eyeR_x - scale / 2, eyeY - scale / 2, scale, TFT_WHITE);
-            _canvas->fillCircle(eyeR_x + scale / 2, eyeY - scale / 2, scale, TFT_WHITE);
-            _canvas->fillTriangle(eyeR_x - scale, eyeY + scale / 2, eyeR_x + scale, eyeY + scale / 2, eyeR_x, eyeY + scale * 2, TFT_WHITE);
-            break;
-        }
-
-        case 3: {
-            int armLen = scale + 1;
-            _canvas->drawLine(eyeL_x - armLen, eyeY - armLen, eyeL_x + armLen, eyeY + armLen, TFT_WHITE);
-            _canvas->drawLine(eyeL_x - armLen, eyeY + armLen, eyeL_x + armLen, eyeY - armLen, TFT_WHITE);
-            _canvas->drawLine(eyeL_x, eyeY - armLen - 1, eyeL_x, eyeY + armLen + 1, TFT_WHITE);
-            _canvas->drawLine(eyeL_x - armLen - 1, eyeY, eyeL_x + armLen + 1, eyeY, TFT_WHITE);
-
-            _canvas->drawLine(eyeR_x - armLen, eyeY - armLen, eyeR_x + armLen, eyeY + armLen, TFT_WHITE);
-            _canvas->drawLine(eyeR_x - armLen, eyeY + armLen, eyeR_x + armLen, eyeY - armLen, TFT_WHITE);
-            _canvas->drawLine(eyeR_x, eyeY - armLen - 1, eyeR_x, eyeY + armLen + 1, TFT_WHITE);
-            _canvas->drawLine(eyeR_x - armLen - 1, eyeY, eyeR_x + armLen + 1, eyeY, TFT_WHITE);
-            break;
-        }
-        }
-    }
-
-    int mouthY = cy + eyeOffsetY + scale;
-    int mouthW = scale * 2;
+    _canvas->fillTriangle(x-2, y-2, x+2, y-2, x, y+1, bubbleColor);
 
     switch (mood) {
     case Mood::HAPPY:
     case Mood::LAUGHING:
-        _canvas->drawArc(cx, mouthY, mouthW, mouthW, 0, 180, TFT_WHITE);
+        _canvas->fillCircle(x-2, y-8, 2, 0xF800);
+        _canvas->fillCircle(x+2, y-8, 2, 0xF800);
+        _canvas->fillTriangle(x-3, y-7, x+3, y-7, x, y-4, 0xF800);
         break;
-
-    case Mood::SAD:
-    case Mood::SICK:
-        _canvas->drawArc(cx, mouthY - mouthW / 2, mouthW, mouthW, 180, 360, TFT_WHITE);
-        break;
-
     case Mood::SLEEPING:
+        _canvas->drawLine(x-2, y-9, x+2, y-9, 0x001F);
+        _canvas->drawLine(x+2, y-9, x-2, y-5, 0x001F);
+        _canvas->drawLine(x-2, y-5, x+2, y-5, 0x001F);
         break;
-
+    case Mood::SAD:
+        _canvas->fillCircle(x, y-6, 2, 0x001F);
+        _canvas->fillTriangle(x-2, y-6, x+2, y-6, x, y-3, 0x001F);
+        break;
     case Mood::ANGRY:
-        _canvas->drawLine(cx - mouthW, mouthY - scale, cx, mouthY, TFT_WHITE);
-        _canvas->drawLine(cx, mouthY, cx + mouthW, mouthY - scale, TFT_WHITE);
+    case Mood::ANNOYED:
+        _canvas->fillRect(x-3, y-9, 6, 3, 0x8410);
+        _canvas->drawLine(x, y-6, x-1, y-4, 0xFFE0);
+        _canvas->drawLine(x-1, y-4, x+1, y-4, 0xFFE0);
         break;
-
+    case Mood::SICK:
+        _canvas->drawFastHLine(x-2, y-7, 5, 0x07E0);
+        _canvas->drawFastVLine(x, y-9, 5, 0x07E0);
+        break;
     case Mood::SCARED:
     case Mood::STARTLED:
-        _canvas->fillCircle(cx, mouthY, scale, TFT_WHITE);
+        _canvas->fillRect(x-1, y-9, 2, 4, 0xFFE0);
+        _canvas->fillRect(x-1, y-4, 2, 2, 0xFFE0);
         break;
-
     case Mood::EXCITED:
-        _canvas->fillRect(cx - mouthW, mouthY - scale, mouthW * 2, scale * 2, TFT_WHITE);
+        _canvas->drawLine(x, y-9, x, y-5, 0xFFE0);
+        _canvas->drawLine(x-3, y-8, x+3, y-6, 0xFFE0);
+        _canvas->drawLine(x+3, y-8, x-3, y-6, 0xFFE0);
         break;
-
-    case Mood::NEUTRAL:
     case Mood::PENSIVE:
     case Mood::DIZZY:
-    case Mood::ANNOYED:
+        _canvas->drawCircle(x, y-7, 3, 0x8888);
+        _canvas->fillRect(x-1, y-8, 2, 2, 0x8888);
+        break;
     default:
-        _canvas->drawLine(cx - mouthW, mouthY, cx + mouthW, mouthY, TFT_WHITE);
+        _canvas->fillCircle(x, y-7, 1, 0x8888);
         break;
     }
 }
 
 void GotchiRenderer::_drawStatsBar() {
+    _canvas->fillRect(0, 0, 240, 18, 0x0000);
+    _canvas->setTextColor(TFT_WHITE);
     _canvas->setTextSize(1);
-    _canvas->setTextColor(TFT_WHITE, TFT_BLACK);
 
-    PetStats stats = _pet->stats();
-    uint16_t healthColor = stats.health < 20 ? TFT_RED : TFT_WHITE;
-    uint16_t hungerColor = stats.hunger < 20 ? TFT_RED : TFT_WHITE;
-    uint16_t energyColor = stats.energy < 20 ? TFT_RED : TFT_WHITE;
+    PetStats s = _pet->stats();
+    auto col = [](uint8_t v) { return v < 20 ? (uint16_t)TFT_RED : (uint16_t)TFT_WHITE; };
 
-    _canvas->setTextColor(healthColor, TFT_BLACK);
-    _canvas->drawString("H", 4, 5);
-    _canvas->setTextColor(TFT_WHITE, TFT_BLACK);
-    _canvas->drawString(String(stats.health), 15, 5);
+    _canvas->setTextColor(col(s.health));
+    _canvas->drawString("HP:" + String(s.health), 2, 4);
 
-    _canvas->setTextColor(hungerColor, TFT_BLACK);
-    _canvas->drawString("F", 45, 5);
-    _canvas->setTextColor(TFT_WHITE, TFT_BLACK);
-    _canvas->drawString(String(stats.hunger), 55, 5);
+    _canvas->setTextColor(col(s.hunger));
+    _canvas->drawString("HG:" + String(s.hunger), 50, 4);
 
-    _canvas->setTextColor(energyColor, TFT_BLACK);
-    _canvas->drawString("E", 85, 5);
-    _canvas->setTextColor(TFT_WHITE, TFT_BLACK);
-    _canvas->drawString(String(stats.energy), 95, 5);
+    _canvas->setTextColor(col(s.energy));
+    _canvas->drawString("EN:" + String(s.energy), 98, 4);
 
-    _canvas->setTextColor(TFT_WHITE, TFT_BLACK);
     auto dt = M5.Rtc.getDateTime();
-    String timeStr = String(dt.time.hours) + ":" + (dt.time.minutes < 10 ? "0" : "") + String(dt.time.minutes);
-    _canvas->drawString(timeStr, 160, 5);
+    char timeBuf[6];
+    snprintf(timeBuf, sizeof(timeBuf), "%02d:%02d", dt.time.hours, dt.time.minutes);
+    _canvas->setTextColor(TFT_GREEN);
+    _canvas->drawString(timeBuf, 148, 4);
 
-    _canvas->drawString("G" + String(_pet->currentID().generation), 210, 5);
+    _canvas->setTextColor(0xAAAA);
+    const char* stageStr[] = {"EGG","BABY","YNG","ADLT"};
+    char info[12];
+    snprintf(info, sizeof(info), "G%d %s",
+             _pet->currentID().generation,
+             stageStr[(uint8_t)_pet->stage()]);
+    _canvas->drawString(info, 190, 4);
 }
 
-void GotchiRenderer::_drawActionBar() {
-    if (!_actionBarVisible) return;
+void GotchiRenderer::_drawActionBar(uint8_t selected, bool visible) {
+    if (!visible) return;
 
-    int y_start = 108;
-    int y_end = 134;
-    int bar_height = y_end - y_start;
-    int icon_size = 16;
-    int icon_scale = 1;
-    int spacing = 240 / 5;
+    _canvas->fillRect(0, 108, 240, 27, 0x1082);
 
+    const char* labels[] = {"FEED","PLAY","MED","LITE","BATH"};
     for (int i = 0; i < 5; i++) {
-        int icon_x = (i * spacing) + (spacing - icon_size * icon_scale) / 2;
-        int icon_y = y_start + (bar_height - icon_size * icon_scale) / 2;
+        int cx = 24 + i * 48;
+        int cy = 121;
+        bool active = (i == selected);
 
-        uint16_t borderColor = (static_cast<int>(_selectedAction) == i) ? TFT_WHITE : TFT_DARKGREY;
+        uint16_t bg = active ? 0x07E0 : 0x2104;
+        _canvas->fillRoundRect(cx-20, cy-10, 40, 20, 3, bg);
+        if (active) _canvas->drawRoundRect(cx-21, cy-11, 42, 22, 3, TFT_WHITE);
 
-        _canvas->drawRect(icon_x - 1, icon_y - 1, icon_size * icon_scale + 2, icon_size * icon_scale + 2, borderColor);
-
-        uint16_t iconColor = (static_cast<int>(_selectedAction) == i) ? TFT_WHITE : 0x8410;
-
-        switch (i) {
-        case 0:
-            _canvas->fillRect(icon_x + 4, icon_y + 5, 8, 6, iconColor);
-            _canvas->fillRect(icon_x + 2, icon_y + 6, 3, 4, iconColor);
-            _canvas->fillRect(icon_x + 11, icon_y + 6, 3, 4, iconColor);
-            break;
-
-        case 1:
-            _canvas->fillRect(icon_x + 3, icon_y + 3, 10, 10, iconColor);
-            _canvas->fillCircle(icon_x + 6, icon_y + 6, 1, TFT_BLACK);
-            _canvas->fillCircle(icon_x + 10, icon_y + 6, 1, TFT_BLACK);
-            _canvas->fillCircle(icon_x + 8, icon_y + 10, 1, TFT_BLACK);
-            break;
-
-        case 2:
-            _canvas->fillRect(icon_x + 5, icon_y + 3, 6, 10, iconColor);
-            _canvas->fillCircle(icon_x + 5, icon_y + 4, 2, iconColor);
-            _canvas->fillCircle(icon_x + 11, icon_y + 4, 2, iconColor);
-            break;
-
-        case 3:
-            _canvas->fillCircle(icon_x + 8, icon_y + 6, 3, iconColor);
-            _canvas->drawLine(icon_x + 8, icon_y + 2, icon_x + 8, icon_y + 1, iconColor);
-            _canvas->drawLine(icon_x + 6, icon_y + 4, icon_x + 4, icon_y + 2, iconColor);
-            _canvas->drawLine(icon_x + 10, icon_y + 4, icon_x + 12, icon_y + 2, iconColor);
-            break;
-
-        case 4:
-            _canvas->drawRect(icon_x + 3, icon_y + 5, 10, 8, iconColor);
-            _canvas->fillCircle(icon_x + 5, icon_y + 4, 2, iconColor);
-            _canvas->fillCircle(icon_x + 11, icon_y + 4, 2, iconColor);
-            break;
-
-        default:
-            break;
-        }
+        _canvas->setTextColor(active ? TFT_BLACK : 0x8888);
+        _canvas->setTextSize(1);
+        int tw = strlen(labels[i]) * 6;
+        _canvas->drawString(labels[i], cx - tw/2, cy - 3);
     }
 }
 
@@ -361,7 +311,115 @@ void GotchiRenderer::_drawSleepZs(int cx, int cy) {
     }
 }
 
-GotchiRenderer::SpritePalette GotchiRenderer::_buildPalette(const GotchiVisual& vis) {
+SpriteFrame GotchiRenderer::_selectSprite(LifeStage stage, GotchiBranch branch, uint8_t frame) {
+    if (stage == LifeStage::EGG) {
+        return frame == 0 ?
+            SpriteFrame{SPR_EGG_F0, 12, 14, 3} :
+            SpriteFrame{SPR_EGG_F1, 12, 14, 3};
+    }
+
+    if (branch == GotchiBranch::BLOB) {
+        if (stage == LifeStage::BABY) {
+            return frame == 0 ?
+                SpriteFrame{SPR_BLOB_BABY_F0, 16, 16, 3} :
+                SpriteFrame{SPR_BLOB_BABY_F1, 16, 16, 3};
+        } else if (stage == LifeStage::YOUNG) {
+            return frame == 0 ?
+                SpriteFrame{SPR_BLOB_YOUNG_F0, 20, 22, 2} :
+                SpriteFrame{SPR_BLOB_YOUNG_F1, 20, 22, 2};
+        } else {
+            return frame == 0 ?
+                SpriteFrame{SPR_BLOB_ADULT_F0, 24, 26, 2} :
+                SpriteFrame{SPR_BLOB_ADULT_F1, 24, 26, 2};
+        }
+    } else if (branch == GotchiBranch::PLANT) {
+        if (stage == LifeStage::BABY) {
+            return frame == 0 ?
+                SpriteFrame{SPR_PLANT_BABY_F0, 16, 16, 3} :
+                SpriteFrame{SPR_PLANT_BABY_F1, 16, 16, 3};
+        } else if (stage == LifeStage::YOUNG) {
+            return frame == 0 ?
+                SpriteFrame{SPR_PLANT_YOUNG_F0, 20, 22, 2} :
+                SpriteFrame{SPR_PLANT_YOUNG_F1, 20, 22, 2};
+        } else {
+            return frame == 0 ?
+                SpriteFrame{SPR_PLANT_ADULT_F0, 24, 26, 2} :
+                SpriteFrame{SPR_PLANT_ADULT_F1, 24, 26, 2};
+        }
+    } else {
+        if (stage == LifeStage::BABY) {
+            return frame == 0 ?
+                SpriteFrame{SPR_LIBRE_BABY_F0, 16, 16, 3} :
+                SpriteFrame{SPR_LIBRE_BABY_F1, 16, 16, 3};
+        } else if (stage == LifeStage::YOUNG) {
+            return frame == 0 ?
+                SpriteFrame{SPR_LIBRE_YOUNG_F0, 20, 22, 2} :
+                SpriteFrame{SPR_LIBRE_YOUNG_F1, 20, 22, 2};
+        } else {
+            return frame == 0 ?
+                SpriteFrame{SPR_LIBRE_ADULT_F0, 24, 26, 2} :
+                SpriteFrame{SPR_LIBRE_ADULT_F1, 24, 26, 2};
+        }
+    }
+}
+
+void GotchiRenderer::_drawFrame() {
+    if (!_display || !_display->acquire(100)) return;
+
+    _canvas = &_display->canvas();
+    _canvas->fillScreen(TFT_BLACK);
+
+    if (_pet->isDead()) {
+        GotchiVisual vis = decodeVisual(_pet->currentID().visual_seed);
+        SpritePalette pal = _buildPalette(vis, LifeStage::EGG, GotchiBranch::BLOB);
+        int cx = 120;
+        int cy = 62;
+        _drawSprite(SPR_DEATH, 16, 16,
+                    cx - (16 * 2) / 2, cy - (16 * 2) / 2,
+                    2, pal);
+    } else {
+        _drawBackground();
+
+        uint32_t now = millis();
+        uint32_t delta = now - _lastFrameMs;
+        if (delta < 16) delta = 16;
+        _lastFrameMs = now;
+        _updatePosition(delta);
+
+        GotchiVisual vis = decodeVisual(_pet->currentID().visual_seed);
+        SpritePalette pal = _buildPalette(vis, _pet->stage(), _pet->branch());
+
+        SpriteFrame frame = _selectSprite(_pet->stage(), _pet->branch(), _animFrame);
+
+        int spriteX = (int)_posX - (frame.w * frame.scale) / 2;
+        int spriteY = (int)_posY - (frame.h * frame.scale) / 2;
+        spriteY = max(PLAY_Y0, min(PLAY_Y1 - frame.h * frame.scale, spriteY));
+
+        _drawSprite(frame.data, frame.w, frame.h, spriteX, spriteY, frame.scale, pal);
+
+        if (_pet->mood() != Mood::NEUTRAL) {
+            _drawEmote(_pet->mood(), (int)_posX, spriteY - 2);
+        }
+
+        if (_pet->isSleeping()) {
+            _drawSleepZs((int)_posX + 10, spriteY);
+        }
+
+        _drawStatsBar();
+        _drawActionBar(_selectedAction, _actionBarVisible);
+    }
+
+    _canvas->pushSprite(0, 0);
+    _display->release();
+
+    uint32_t now = millis();
+    if (now - _lastFrameMs >= FRAME_INTERVAL_MS) {
+        _lastFrameMs = now;
+        _animFrame = (_animFrame + 1) % 2;
+    }
+}
+
+GotchiRenderer::SpritePalette GotchiRenderer::_buildPalette(const GotchiVisual& vis, LifeStage stage, GotchiBranch branch) {
     SpritePalette pal;
 
     pal.transparent = 0x0000;
@@ -372,21 +430,32 @@ GotchiRenderer::SpritePalette GotchiRenderer::_buildPalette(const GotchiVisual& 
     uint8_t sat_secondary = 160;
     uint8_t val_secondary = 240;
 
-    if (_stage == LifeStage::EGG) {
+    if (stage == LifeStage::EGG) {
         sat_primary = 120;
         val_primary = 180;
         sat_secondary = 100;
         val_secondary = 200;
-    } else if (_stage == LifeStage::ADULT) {
+    } else if (stage == LifeStage::ADULT) {
         sat_primary = 220;
         val_primary = 240;
         sat_secondary = 180;
         val_secondary = 255;
     }
 
-    pal.primary = hsvToRgb565(vis.hue_primary * 11, sat_primary, val_primary);
-    pal.secondary = hsvToRgb565(vis.hue_secondary * 11, sat_secondary, val_secondary);
-    pal.dark = hsvToRgb565(vis.hue_primary * 11, 200, 100);
+    uint8_t hue_primary = vis.hue_primary * 11;
+    uint8_t hue_secondary = vis.hue_secondary * 11;
+
+    if (branch == GotchiBranch::PLANT) {
+        hue_primary = 5 + (millis() / 10000) % 6;
+        hue_secondary = 28 + (millis() / 15000) % 4;
+    } else if (branch == GotchiBranch::LIBRE) {
+        hue_primary = 15 + (millis() / 12000) % 10;
+        val_primary = min(255, val_primary + 20);
+    }
+
+    pal.primary = hsvToRgb565(hue_primary, sat_primary, val_primary);
+    pal.secondary = hsvToRgb565(hue_secondary, sat_secondary, val_secondary);
+    pal.dark = hsvToRgb565(hue_primary, 200, 100);
 
     return pal;
 }

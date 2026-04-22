@@ -7,14 +7,10 @@
 #include "../../gotchi/GotchiDNA.h"
 #include "../../core/DisplayManager.h"
 
-enum class LifeStage : uint8_t {
-    EGG = 0, BABY = 1, YOUNG = 2, ADULT = 3
-};
-
 class GotchiRenderer {
 public:
     void inject(DisplayManager* display) { _display = display; }
-    void start(GotchiPet* pet, LifeStage stage);
+    void start(GotchiPet* pet);
     void suspend();
     void resume();
     void stop();
@@ -23,7 +19,6 @@ public:
 
     void setGaze(float h, float v = 0.0f);
     void setActionBarState(uint8_t selected, bool visible);
-    void setLifeStage(LifeStage stage);
 
 private:
     GotchiPet*      _pet      = nullptr;
@@ -32,9 +27,20 @@ private:
     bool            _started  = false;
     bool            _suspended = false;
 
-    LifeStage   _stage    = LifeStage::EGG;
     float       _gazeH    = 0.0f;
     float       _gazeV    = 0.0f;
+
+    float       _posX = 120.0f;
+    float       _posY = 62.0f;
+    float       _velX = 0.5f;
+    float       _velY = 0.2f;
+    uint32_t    _moveAccumMs = 0;
+    uint32_t    _nextDirChangeMs = 0;
+
+    static constexpr int PLAY_X0 = 4;
+    static constexpr int PLAY_X1 = 236;
+    static constexpr int PLAY_Y0 = 22;
+    static constexpr int PLAY_Y1 = 100;
 
     uint8_t      _selectedAction = 0;
     bool         _actionBarVisible = true;
@@ -48,11 +54,13 @@ private:
     static void  _renderTask(void* arg);
 
     void _drawFrame();
-    void _drawBody(const GotchiVisual& vis, uint8_t frame);
-    void _drawFace(Mood mood, float gazeH, float gazeV, int cx, int cy, int scale);
+    void _drawBackground();
+    void _drawEmote(Mood mood, int x, int y);
+    void _updatePosition(uint32_t deltaMs);
     void _drawStatsBar();
-    void _drawActionBar();
+    void _drawActionBar(uint8_t selected, bool visible);
     void _drawSleepZs(int cx, int cy);
+    SpriteFrame _selectSprite(LifeStage stage, GotchiBranch branch, uint8_t frame);
 
     struct SpritePalette {
         uint16_t transparent;
@@ -62,7 +70,7 @@ private:
         uint16_t white;
     };
 
-    SpritePalette _buildPalette(const GotchiVisual& vis);
+    SpritePalette _buildPalette(const GotchiVisual& vis, LifeStage stage, GotchiBranch branch);
     void _drawSprite(const uint8_t* data, uint8_t w, uint8_t h,
                      int x, int y, uint8_t scale, const SpritePalette& pal);
 };

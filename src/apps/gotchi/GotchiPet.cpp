@@ -17,6 +17,12 @@ void GotchiPet::begin() {
 
     _mood        = Mood::HAPPY;
     _moodChanged = true;
+
+    _stage = LifeStage::EGG;
+    _stageAgeMs = 0;
+    _feedCount = 0;
+    _playCount = 0;
+    _branch = GotchiBranch::BLOB;
 }
 
 void GotchiPet::save() {
@@ -25,6 +31,11 @@ void GotchiPet::save() {
     prefs.putUChar("h",  _stats.hunger);
     prefs.putUChar("e",  _stats.energy);
     prefs.putUChar("hp", _stats.health);
+    prefs.putUChar("st", (uint8_t)_stage);
+    prefs.putUChar("br", (uint8_t)_branch);
+    prefs.putUInt("sa", _stageAgeMs);
+    prefs.putUInt("fc", _feedCount);
+    prefs.putUInt("pc", _playCount);
     prefs.end();
 }
 
@@ -35,6 +46,11 @@ void GotchiPet::load() {
     _stats.hunger = prefs.getUChar("h",  _stats.hunger);
     _stats.energy = prefs.getUChar("e",  _stats.energy);
     _stats.health = prefs.getUChar("hp", _stats.health);
+    _stage = (LifeStage)prefs.getUChar("st", (uint8_t)LifeStage::EGG);
+    _branch = (GotchiBranch)prefs.getUChar("br", (uint8_t)GotchiBranch::BLOB);
+    _stageAgeMs = prefs.getUInt("sa", 0);
+    _feedCount = prefs.getUInt("fc", 0);
+    _playCount = prefs.getUInt("pc", 0);
     prefs.end();
 }
 
@@ -49,6 +65,28 @@ void GotchiPet::tick(uint32_t deltaMs) {
         _tempMood = Mood::NEUTRAL;
 
     _updateSleep();
+
+    _stageAgeMs += deltaMs;
+
+    bool stageChanged = false;
+    if (_stage == LifeStage::EGG && _stageAgeMs >= STAGE_EGG_MS) {
+        _stage = LifeStage::BABY;
+        _stageAgeMs = 0;
+        stageChanged = true;
+    }
+    else if (_stage == LifeStage::BABY && _stageAgeMs >= STAGE_BABY_MS) {
+        _stage = LifeStage::YOUNG;
+        _stageAgeMs = 0;
+        if (_feedCount > _playCount * 2)      _branch = GotchiBranch::PLANT;
+        else if (_playCount > _feedCount * 2) _branch = GotchiBranch::LIBRE;
+        else                                   _branch = GotchiBranch::BLOB;
+        stageChanged = true;
+    }
+    else if (_stage == LifeStage::YOUNG && _stageAgeMs >= STAGE_YOUNG_MS) {
+        _stage = LifeStage::ADULT;
+        _stageAgeMs = 0;
+        stageChanged = true;
+    }
 
     _decayAccum += deltaMs;
     if (_decayAccum >= DECAY_INTERVAL_MS) {
@@ -77,12 +115,14 @@ void GotchiPet::tick(uint32_t deltaMs) {
 void GotchiPet::feed() {
     if (_dead) return;
     _stats.hunger = min(100, (int)_stats.hunger + 25);
+    _feedCount++;
     _setTempMood(Mood::HAPPY, 3000);
 }
 
 void GotchiPet::play() {
     if (_dead || _sleeping) return;
     _stats.energy = (_stats.energy > 10) ? _stats.energy - 10 : 0;
+    _playCount++;
     _setTempMood(Mood::EXCITED, 5000);
 }
 

@@ -19,6 +19,19 @@ enum class Mood : uint8_t {
     SCARED    = 12,
 };
 
+enum class GotchiBranch : uint8_t {
+    BLOB  = 0,
+    PLANT = 1,
+    LIBRE = 2,
+};
+
+enum class LifeStage : uint8_t {
+    EGG   = 0,
+    BABY  = 1,
+    YOUNG = 2,
+    ADULT = 3,
+};
+
 struct PetStats {
     uint8_t hunger;   // 0 (starving) → 100 (full)
     uint8_t energy;   // 0 (exhausted) → 100 (rested)
@@ -50,6 +63,8 @@ public:
     bool      isDead()      const { return _dead; }
     bool      isNewEgg()    const { return _newEggReady; }
     GotchiID  currentID()   const { return _id; }
+    GotchiBranch branch()   const { return _branch; }
+    LifeStage    stage()    const { return _stage; }
 
     // NVS persistence
     void save();
@@ -81,11 +96,20 @@ private:
     GotchiLineage   _lineage;
     bool            _newEggReady = false;
 
+    GotchiBranch _branch      = GotchiBranch::BLOB;
+    LifeStage    _stage       = LifeStage::EGG;
+    uint32_t     _stageAgeMs  = 0;
+    uint32_t     _feedCount   = 0;
+    uint32_t     _playCount   = 0;
+
     static constexpr uint32_t DECAY_INTERVAL_MS  = 10000;   // 10s per decay tick
     static constexpr uint32_t SAVE_INTERVAL_MS   = 300000;  // 5 min
-    static constexpr uint32_t DEATH_DELAY_MS      = 900000; // 15 min at health=0
-    static constexpr uint8_t  DECAY_HUNGER        = 1;
-    static constexpr uint8_t  DECAY_ENERGY        = 1;
+    static constexpr uint32_t DEATH_DELAY_MS     = 900000;  // 15 min at health=0
+    static constexpr uint32_t STAGE_EGG_MS       = 3600000;    // 60 min
+    static constexpr uint32_t STAGE_BABY_MS      = 259200000;  // 72 h
+    static constexpr uint32_t STAGE_YOUNG_MS     = 604800000;  // 168 h
+    static constexpr uint8_t  DECAY_HUNGER       = 1;
+    static constexpr uint8_t  DECAY_ENERGY       = 1;
 
     void _recalcMood();
     void _setTempMood(Mood m, uint32_t durationMs);

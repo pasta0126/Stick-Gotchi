@@ -4,7 +4,7 @@
 
 void GotchiApp::init() {
     _pet.begin();
-    _renderer.start(&_pet, LifeStage::EGG);
+    _renderer.start(&_pet);
     M5.Mic.begin();
     _actionBarVisible = true;
     _actionBarHideMs  = millis() + 10000;

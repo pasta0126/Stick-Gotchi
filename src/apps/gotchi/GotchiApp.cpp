@@ -14,14 +14,32 @@ void GotchiApp::update(uint32_t deltaMs) {
     auto dt = M5.Rtc.getDateTime();
     _pet.setHour(dt.time.hours);
 
+    if (_activeMiniGame == MiniGameId::FLIP_COIN) {
+        // cryptobiosis: gotchi congelado, solo avanza el minijuego
+        _flipCoin.update(deltaMs);
+        _renderer.setMiniGame(
+            static_cast<uint8_t>(_activeMiniGame),
+            static_cast<uint8_t>(_flipCoin.state()),
+            _flipCoin.coinFrame(),
+            _flipCoin.isHeads()
+        );
+        return;
+    }
+
     _pet.tick(deltaMs);
     _pollImu(deltaMs);
     _pollMic(deltaMs);
+    _renderer.setMiniGame(0, 0, 0, false);
     _renderer.setActionBarState(static_cast<uint8_t>(_selectedAction), _actionBarVisible);
-
     if (_actionBarVisible && millis() > _actionBarHideMs) {
         _actionBarVisible = false;
     }
+}
+
+void GotchiApp::startMiniGame(MiniGameId id) {
+    _activeMiniGame = id;
+    if (id == MiniGameId::FLIP_COIN)
+        _flipCoin.start();
 }
 
 void GotchiApp::suspend() {
@@ -38,6 +56,23 @@ void GotchiApp::destroy() {
 }
 
 bool GotchiApp::onInput(const InputEvent& e) {
+    if (_activeMiniGame == MiniGameId::FLIP_COIN) {
+        if (e.button == ButtonId::A && e.action == ButtonAction::SHORT_PRESS) {
+            _flipCoin.onBtnA();
+            return true;
+        }
+        if (e.button == ButtonId::B) {
+            _activeMiniGame = MiniGameId::NONE;
+            _renderer.setMiniGame(0, 0, 0, false);
+            return true;
+        }
+        return true;
+    }
+
+    if (e.button == ButtonId::B && e.action == ButtonAction::LONG_PRESS) {
+        if (_menuCallback) _menuCallback();
+        return true;
+    }
     if (e.button == ButtonId::B && e.action == ButtonAction::SHORT_PRESS) {
         _cycleAction();
         return true;

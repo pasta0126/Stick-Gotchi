@@ -3,6 +3,8 @@
 #include "../../core/DisplayManager.h"
 #include "GotchiPet.h"
 #include "GotchiRenderer.h"
+#include "MiniGames.h"
+#include "FlipCoinGame.h"
 
 enum class GotchiAction : uint8_t {
     FEED = 0, PLAY, MEDICINE, LIGHT, CLEAN, COUNT
@@ -19,10 +21,13 @@ public:
     const char* getName() const       override { return "Stick Gotchi"; }
 
     void injectRenderer(DisplayManager* display) { _renderer.inject(display); }
+    void startMiniGame(MiniGameId id);
 
 private:
     GotchiPet      _pet;
     GotchiRenderer _renderer;
+    FlipCoinGame   _flipCoin;
+    MiniGameId     _activeMiniGame = MiniGameId::NONE;
 
     // Action bar state
     GotchiAction _selectedAction  = GotchiAction::FEED;

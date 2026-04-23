@@ -6,6 +6,7 @@
 #include "menu/MenuOverlay.h"
 #include "ble/BleService.h"
 #include "apps/gotchi/GotchiApp.h"
+#include "apps/gotchi/MiniGames.h"
 #include "apps/imudemo/ImuDemoApp.h"
 
 // ── Singletons ────────────────────────────────────────────────────────────────
@@ -66,6 +67,13 @@ static void iconWave(M5Canvas& c, int cx, int cy, int sz, uint32_t col) {
     }
 }
 
+static void iconCoin(M5Canvas& c, int cx, int cy, int sz, uint32_t col) {
+    int r = sz / 2 - 2;
+    c.fillCircle(cx, cy, r, col);
+    c.fillCircle(cx, cy, r * 5 / 8, (uint32_t)0x000000);
+    c.drawCircle(cx, cy, r, col);
+}
+
 static void iconReboot(M5Canvas& c, int cx, int cy, int sz, uint32_t col) {
     int r = sz/2 - 2;
     for (int a = 40; a <= 320; a += 6) {
@@ -112,9 +120,18 @@ void setup() {
           nullptr, iconCompass, {} },
     };
 
+    std::vector<MenuItem> gameChildren = {
+        { "Lanzar Moneda", MenuItemType::ACTION,
+          nullptr,
+          []() { gotchiApp.startMiniGame(MiniGameId::FLIP_COIN); },
+          iconCoin, {} },
+    };
+
     menu.addItem({ "Stick Gotchi", MenuItemType::APP,
                    []() -> AppBase* { return &gotchiApp; },
                    nullptr, iconGotchi, {} });
+    menu.addItem({ "Jugar",        MenuItemType::SUBMENU,
+                   nullptr, nullptr, iconCoin, gameChildren });
     menu.addItem({ "IMU Sensors",  MenuItemType::SUBMENU,
                    nullptr, nullptr, iconBars, imuChildren });
     menu.addItem({ "Reboot",       MenuItemType::ACTION,

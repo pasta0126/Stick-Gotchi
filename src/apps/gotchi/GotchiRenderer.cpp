@@ -59,6 +59,13 @@ void GotchiRenderer::setActionBarState(uint8_t selected, bool visible) {
     _actionBarVisible = visible;
 }
 
+void GotchiRenderer::setMiniGame(uint8_t id, uint8_t state, uint8_t frame, bool isHeads) {
+    _miniGameId     = id;
+    _miniGameState  = state;
+    _miniGameFrame  = frame;
+    _miniGameIsHeads = isHeads;
+}
+
 void GotchiRenderer::_renderTask(void* arg) {
     auto* self = static_cast<GotchiRenderer*>(arg);
     for (;;) {
@@ -382,11 +389,65 @@ SpriteFrame GotchiRenderer::_selectSprite(LifeStage stage, GotchiBranch branch, 
     }
 }
 
+void GotchiRenderer::_drawFlipCoin() {
+    static const uint8_t* const COIN_FRAMES[12] = {
+        SPR_COIN_F0, SPR_COIN_F1, SPR_COIN_F2,  SPR_COIN_F3,
+        SPR_COIN_F4, SPR_COIN_F5, SPR_COIN_F6,  SPR_COIN_F7,
+        SPR_COIN_F8, SPR_COIN_F9, SPR_COIN_F10, SPR_COIN_F11
+    };
+
+    // Header
+    _canvas->fillRect(0, 0, 240, 18, 0x0000);
+    _canvas->setTextColor(0xFEA0);
+    _canvas->setTextSize(1);
+    _canvas->drawCenterString("FLIP COIN", 120, 4);
+    _canvas->setTextColor(0x4208);
+    _canvas->drawString("B:salir", 192, 4);
+
+    // Coin sprite — scale 4 (64x64), centered horizontally, y=25
+    // Colores exactos de la paleta de la moneda
+    SpritePalette pal;
+    pal.transparent = 0x0000;
+    pal.primary     = 0x7207;  // sombra (113,65,59)
+    pal.secondary   = 0xDD2C;  // oro calido (219,164,99)
+    pal.dark        = 0xFEA8;  // oro brillante (255,213,65)
+    pal.accent      = 0xFFC8;  // highlight (255,252,64)
+
+    constexpr int SCALE = 4;
+    constexpr int SW = COIN_W * SCALE;   // 64
+    constexpr int SH = COIN_H * SCALE;   // 64
+    int coinX = (240 - SW) / 2;          // 88
+    int coinY = 28;
+    _drawSprite(COIN_FRAMES[_miniGameFrame], COIN_W, COIN_H, coinX, coinY, SCALE, pal);
+
+    // Bottom area
+    _canvas->setTextSize(1);
+    if (_miniGameState == 2) {  // RESULT
+        _canvas->setTextSize(2);
+        _canvas->setTextColor(_miniGameIsHeads ? (uint16_t)0xFEA8 : (uint16_t)0xFFFF);
+        _canvas->drawCenterString(_miniGameIsHeads ? "CARA" : "CRUZ", 120, 100);
+        _canvas->setTextSize(1);
+        _canvas->setTextColor(0x4208);
+        _canvas->drawCenterString("A: otra vez  B: salir", 120, 122);
+    } else {
+        _canvas->setTextColor(0x4208);
+        _canvas->drawCenterString("A: lanzar  B: salir", 120, 115);
+    }
+}
+
 void GotchiRenderer::_drawFrame() {
     if (!_display || !_display->acquire(100)) return;
 
     _canvas = &_display->canvas();
     _canvas->fillScreen(TFT_BLACK);
+
+    if (_miniGameId == 1) {
+        _lastFrameMs = millis();  // evita acumulacion de delta al volver al gotchi
+        _drawFlipCoin();
+        _canvas->pushSprite(0, 0);
+        _display->release();
+        return;
+    }
 
     if (_pet->isDead()) {
         GotchiVisual vis = decodeVisual(_pet->currentID().visual_seed);

@@ -74,6 +74,15 @@ static void iconCoin(M5Canvas& c, int cx, int cy, int sz, uint32_t col) {
     c.drawCircle(cx, cy, r, col);
 }
 
+static void icon8Ball(M5Canvas& c, int cx, int cy, int sz, uint32_t col) {
+    int r = sz / 2 - 2;
+    c.fillCircle(cx, cy, r, col);
+    c.fillCircle(cx, cy, r / 2, (uint32_t)0x000000);
+    c.setTextSize(1);
+    c.setTextColor(col);
+    c.drawCenterString("8", cx, cy - 3);
+}
+
 static void iconReboot(M5Canvas& c, int cx, int cy, int sz, uint32_t col) {
     int r = sz/2 - 2;
     for (int a = 40; a <= 320; a += 6) {
@@ -125,6 +134,10 @@ void setup() {
           nullptr,
           []() { gotchiApp.startMiniGame(MiniGameId::FLIP_COIN); },
           iconCoin, {} },
+        { "Bola 8", MenuItemType::ACTION,
+          nullptr,
+          []() { gotchiApp.startMiniGame(MiniGameId::MAGIC_8BALL); },
+          icon8Ball, {} },
     };
 
     menu.addItem({ "Stick Gotchi", MenuItemType::APP,

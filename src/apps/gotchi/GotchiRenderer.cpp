@@ -59,11 +59,11 @@ void GotchiRenderer::setActionBarState(uint8_t selected, bool visible) {
     _actionBarVisible = visible;
 }
 
-void GotchiRenderer::setMiniGame(uint8_t id, uint8_t state, uint8_t frame, bool isHeads) {
-    _miniGameId     = id;
-    _miniGameState  = state;
-    _miniGameFrame  = frame;
-    _miniGameIsHeads = isHeads;
+void GotchiRenderer::setMiniGame(uint8_t id, uint8_t state, uint8_t frame, uint8_t extra) {
+    _miniGameId    = id;
+    _miniGameState = state;
+    _miniGameFrame = frame;
+    _miniGameExtra = extra;
 }
 
 void GotchiRenderer::_renderTask(void* arg) {
@@ -424,14 +424,86 @@ void GotchiRenderer::_drawFlipCoin() {
     _canvas->setTextSize(1);
     if (_miniGameState == 2) {  // RESULT
         _canvas->setTextSize(2);
-        _canvas->setTextColor(_miniGameIsHeads ? (uint16_t)0xFEA8 : (uint16_t)0xFFFF);
-        _canvas->drawCenterString(_miniGameIsHeads ? "CARA" : "CRUZ", 120, 100);
+        _canvas->setTextColor(_miniGameExtra ? (uint16_t)0xFEA8 : (uint16_t)0xFFFF);
+        _canvas->drawCenterString(_miniGameExtra ? "CARA" : "CRUZ", 120, 100);
         _canvas->setTextSize(1);
         _canvas->setTextColor(0x4208);
         _canvas->drawCenterString("A: otra vez  B: salir", 120, 122);
     } else {
         _canvas->setTextColor(0x4208);
         _canvas->drawCenterString("A: lanzar  B: salir", 120, 115);
+    }
+}
+
+void GotchiRenderer::_drawMagic8Ball() {
+    static const uint8_t* const BALL_FRAMES[4] = {
+        SPR_8BALL_F0, SPR_8BALL_F1, SPR_8BALL_F2, SPR_8BALL_F3
+    };
+    static const char* const RESULTS[13] = {
+        "",
+        "100% real",
+        "Casi seguro",
+        "Good vibes",
+        "Si",
+        "Dale una vuelta",
+        "Ahora mismo no",
+        "Sigue buscando",
+        "Mejor no saberlo",
+        "No",
+        "Ni de broma",
+        "Mala vibra",
+        "Imposible",
+    };
+
+    // Dark background
+    _canvas->fillScreen(0x0841);
+
+    // Header
+    _canvas->fillRect(0, 0, 240, 18, 0x0000);
+    _canvas->setTextColor(0xFFFF);
+    _canvas->setTextSize(1);
+    _canvas->drawCenterString("BOLA 8", 120, 4);
+    _canvas->setTextColor(0x4208);
+    _canvas->drawString("B:salir", 192, 4);
+
+    // Ball sprite (scale 4 = 64x64), centered
+    SpritePalette pal;
+    pal.transparent = 0x0841;  // matches background so transparent blends in
+    pal.primary     = 0x0000;  // black outline/lines
+    pal.secondary   = 0x2104;  // dark grey shadow
+    pal.dark        = 0x52AA;  // mid grey body
+    pal.accent      = 0xAD55;  // light grey highlight
+    pal.color5      = 0xFFFF;  // white window
+
+    constexpr int SCALE = 4;
+    constexpr int SW    = BALL8_W * SCALE;
+    constexpr int SH    = BALL8_H * SCALE;
+    int ballX = (240 - SW) / 2;
+    int ballY = 26;
+    _drawSprite(BALL_FRAMES[_miniGameFrame], BALL8_W, BALL8_H, ballX, ballY, SCALE, pal);
+
+    // Bottom area
+    _canvas->setTextSize(1);
+    uint8_t state    = _miniGameState;  // BallState as uint8_t: 0=IDLE,1=SHAKING,2=EASING,3=RESULT
+    uint8_t resultId = _miniGameExtra;
+
+    if (state == 3 && resultId >= 1 && resultId <= 12) {  // RESULT
+        uint16_t textColor;
+        if      (resultId <= 4)  textColor = 0x07E0;  // green  (positive)
+        else if (resultId <= 8)  textColor = 0xFFE0;  // yellow (neutral)
+        else                     textColor = 0xF800;  // red    (negative)
+
+        _canvas->fillRect(0, 108, 240, 27, 0x0000);
+        _canvas->setTextSize(2);
+        _canvas->setTextColor(textColor);
+        _canvas->drawCenterString(RESULTS[resultId], 120, 111);
+        _canvas->setTextSize(1);
+        _canvas->setTextColor(0x4208);
+        _canvas->drawCenterString("A: otra vez  B: salir", 120, 128);
+    } else if (state == 0) {  // IDLE
+        _canvas->fillRect(0, 108, 240, 27, 0x0000);
+        _canvas->setTextColor(0x4208);
+        _canvas->drawCenterString("Agita para consultar", 120, 120);
     }
 }
 
@@ -442,8 +514,16 @@ void GotchiRenderer::_drawFrame() {
     _canvas->fillScreen(TFT_BLACK);
 
     if (_miniGameId == 1) {
-        _lastFrameMs = millis();  // evita acumulacion de delta al volver al gotchi
+        _lastFrameMs = millis();
         _drawFlipCoin();
+        _canvas->pushSprite(0, 0);
+        _display->release();
+        return;
+    }
+
+    if (_miniGameId == 2) {
+        _lastFrameMs = millis();
+        _drawMagic8Ball();
         _canvas->pushSprite(0, 0);
         _display->release();
         return;
@@ -592,6 +672,7 @@ void GotchiRenderer::_drawSprite(const uint8_t* data, uint8_t w, uint8_t h,
             case 2: color = pal.secondary; break;
             case 3: color = pal.dark; break;
             case 4: color = pal.accent; break;
+            case 5: color = pal.color5; break;
             default: color = pal.transparent; break;
             }
 

@@ -15,13 +15,24 @@ void GotchiApp::update(uint32_t deltaMs) {
     _pet.setHour(dt.time.hours);
 
     if (_activeMiniGame == MiniGameId::FLIP_COIN) {
-        // cryptobiosis: gotchi congelado, solo avanza el minijuego
         _flipCoin.update(deltaMs);
         _renderer.setMiniGame(
             static_cast<uint8_t>(_activeMiniGame),
             static_cast<uint8_t>(_flipCoin.state()),
             _flipCoin.coinFrame(),
             _flipCoin.isHeads()
+        );
+        return;
+    }
+
+    if (_activeMiniGame == MiniGameId::MAGIC_8BALL) {
+        _pollImuForBall(deltaMs);
+        _magic8Ball.update(deltaMs);
+        _renderer.setMiniGame(
+            static_cast<uint8_t>(_activeMiniGame),
+            static_cast<uint8_t>(_magic8Ball.state()),
+            _magic8Ball.frame(),
+            _magic8Ball.resultId()
         );
         return;
     }
@@ -40,6 +51,8 @@ void GotchiApp::startMiniGame(MiniGameId id) {
     _activeMiniGame = id;
     if (id == MiniGameId::FLIP_COIN)
         _flipCoin.start();
+    else if (id == MiniGameId::MAGIC_8BALL)
+        _magic8Ball.reset();
 }
 
 void GotchiApp::suspend() {
@@ -56,6 +69,17 @@ void GotchiApp::destroy() {
 }
 
 bool GotchiApp::onInput(const InputEvent& e) {
+    if (_activeMiniGame == MiniGameId::MAGIC_8BALL) {
+        if (e.button == ButtonId::B) {
+            _activeMiniGame = MiniGameId::NONE;
+            _renderer.setMiniGame(0, 0, 0, false);
+        } else if (e.button == ButtonId::A && e.action == ButtonAction::SHORT_PRESS) {
+            if (_magic8Ball.state() == BallState::RESULT)
+                _magic8Ball.reset();
+        }
+        return true;
+    }
+
     if (_activeMiniGame == MiniGameId::FLIP_COIN) {
         if (e.button == ButtonId::A && e.action == ButtonAction::SHORT_PRESS) {
             _flipCoin.onBtnA();
@@ -156,6 +180,21 @@ void GotchiApp::_pollImu(uint32_t deltaMs) {
         gazeH = copysignf(min(1.0f, norm), ax);
     }
     _renderer.setGaze(gazeH, 0.0f);
+}
+
+// ── IMU polling (8-ball) ──────────────────────────────────────────────────────
+
+void GotchiApp::_pollImuForBall(uint32_t deltaMs) {
+    _imuPollAccum += deltaMs;
+    if (_imuPollAccum < 50) return;
+    _imuPollAccum = 0;
+
+    float ax, ay, az;
+    M5.Imu.getAccel(&ax, &ay, &az);
+    float mag = sqrtf(ax * ax + ay * ay + az * az);
+    float delta = fabsf(mag - _prevAccMag);
+    _prevAccMag = mag;
+    _magic8Ball.onAccelDelta(delta);
 }
 
 // ── Mic polling ───────────────────────────────────────────────────────────────

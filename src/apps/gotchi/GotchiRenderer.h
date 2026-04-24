@@ -6,6 +6,7 @@
 #include "GotchiSprites.h"
 #include "../../generated/sprites_egg.h"
 #include "../../generated/sprites_coin.h"
+#include "../../generated/sprites_8magicball.h"
 #include "../../gotchi/GotchiDNA.h"
 #include "../../core/DisplayManager.h"
 
@@ -22,7 +23,7 @@ public:
 
     void setGaze(float h, float v = 0.0f);
     void setActionBarState(uint8_t selected, bool visible);
-    void setMiniGame(uint8_t id, uint8_t state, uint8_t frame, bool isHeads);
+    void setMiniGame(uint8_t id, uint8_t state, uint8_t frame, uint8_t extra);
 
 private:
     GotchiPet*      _pet      = nullptr;
@@ -52,7 +53,7 @@ private:
     uint8_t      _miniGameId    = 0;
     uint8_t      _miniGameState = 0;
     uint8_t      _miniGameFrame = 0;
-    bool         _miniGameIsHeads = false;
+    uint8_t      _miniGameExtra = 0;  // coin: isHeads(0/1)  8ball: resultId(1-12)
 
     uint32_t    _lastFrameMs  = 0;
     uint8_t     _animFrame    = 0;
@@ -71,6 +72,7 @@ private:
     void _drawSleepZs(int cx, int cy);
     void _drawHatchPrompt();
     void _drawFlipCoin();
+    void _drawMagic8Ball();
     SpriteFrame _selectSprite(LifeStage stage, GotchiBranch branch, uint8_t frame);
 
     enum class AnimTag : uint8_t { IDLE, EAT, PLAY, SLEEP, DIE, HATCH };
@@ -86,6 +88,7 @@ private:
         uint16_t secondary;
         uint16_t dark;
         uint16_t accent;
+        uint16_t color5 = 0;
     };
 
     SpritePalette _buildPalette(const GotchiVisual& vis, LifeStage stage, GotchiBranch branch);

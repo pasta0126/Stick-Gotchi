@@ -5,6 +5,7 @@
 #include "GotchiRenderer.h"
 #include "MiniGames.h"
 #include "FlipCoinGame.h"
+#include "Magic8BallGame.h"
 
 enum class GotchiAction : uint8_t {
     FEED = 0, PLAY, MEDICINE, LIGHT, CLEAN, COUNT
@@ -27,6 +28,7 @@ private:
     GotchiPet      _pet;
     GotchiRenderer _renderer;
     FlipCoinGame   _flipCoin;
+    Magic8BallGame _magic8Ball;
     MiniGameId     _activeMiniGame = MiniGameId::NONE;
 
     // Action bar state
@@ -46,5 +48,6 @@ private:
     void _cycleAction();
     void _executeAction();
     void _pollImu(uint32_t deltaMs);
+    void _pollImuForBall(uint32_t deltaMs);
     void _pollMic(uint32_t deltaMs);
 };

@@ -45,12 +45,14 @@ Cada archivo = un canvas fijo. Las animaciones van como **tags**.
 Crear estas tags en Aseprite (Frame Tags panel). Los nombres deben ser exactamente estos:
 
 ### egg.aseprite
+
 | Tag     | Frames | Descripción                     |
 | ------- | ------ | ------------------------------- |
 | `idle`  | 2      | Huevo quieto, pequeña vibración |
 | `hatch` | 4      | Secuencia de eclosión           |
 
 ### blob_baby / plant_baby / libre_baby
+
 | Tag     | Frames | Descripción                          |
 | ------- | ------ | ------------------------------------ |
 | `idle`  | 2      | Respiración suave                    |
@@ -60,6 +62,7 @@ Crear estas tags en Aseprite (Frame Tags panel). Los nombres deben ser exactamen
 | `die`   | 4      | Agonía → desmayo                     |
 
 ### blob_young / plant_young / libre_young  (mismas tags)
+
 ### blob_adult / plant_adult / libre_adult  (mismas tags)
 
 ---
@@ -67,14 +70,17 @@ Crear estas tags en Aseprite (Frame Tags panel). Los nombres deben ser exactamen
 ## Personalidad visual de cada rama
 
 ### BLOB
+
 Forma: redondeada, gelatinosa. Tiene pequeñas antenas o protuberancias.
 Arms (limbs) stub-like. Cuerpo principal tipo blob/slime.
 
 ### PLANT
+
 Forma: tiene elementos vegetales — hojas pequeñas, brotes, textura orgánica.
 No es un cactus ni una flor exacta, es un ser vivo con partes vegetales integradas.
 
 ### LIBRE (fuego fatuo / hada)
+
 Forma: más etérea, simétrica, con "alas" o extensiones de luz en los laterales.
 Menos peso visual, más flotante. Las extensiones laterales se animan.
 
@@ -83,6 +89,7 @@ Menos peso visual, más flotante. Las extensiones laterales se animan.
 ## Export
 
 File > Export Sprite Sheet
+
 - Sheet type: Horizontal Strip
 - ✅ Export JSON (formato Hash)
 - Destino: `art/export/gotchi/<nombre_archivo>.png`

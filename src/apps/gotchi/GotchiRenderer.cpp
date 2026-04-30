@@ -193,23 +193,35 @@ void GotchiRenderer::_updatePosition(uint32_t deltaMs) {
 }
 
 void GotchiRenderer::_drawBackground() {
-    _canvas->fillRect(0, 18, 240, 90, 0x0640);
+    // Sky gradient: 3 bandas azul oscuro -> azul claro
+    _canvas->fillRect(0, 18, 240, 30, 0x4419);  // top sky
+    _canvas->fillRect(0, 48, 240, 32, 0x5D1A);  // mid sky
+    _canvas->fillRect(0, 80, 240, 15, 0x75DC);  // lower sky
 
-    _canvas->drawFastHLine(0, 100, 240, 0x4200);
-    _canvas->drawFastHLine(0, 101, 240, 0x2100);
+    // Franja de horizonte
+    _canvas->fillRect(0, 95, 240, 3, 0x7DEB);
 
-    _canvas->fillRect(8, 92, 2, 8, 0x03E0);
-    _canvas->fillRect(4, 90, 4, 2, 0x07E0);
-    _canvas->fillRect(9, 87, 4, 2, 0x07E0);
+    // Suelo
+    _canvas->fillRect(0, 98, 240, 5, 0x5D08);   // cesped
+    _canvas->fillRect(0, 103, 240, 5, 0x33C5);  // tierra
 
-    _canvas->drawLine(228, 25, 232, 29, 0xFFE0);
-    _canvas->drawLine(232, 25, 228, 29, 0xFFE0);
-    _canvas->drawLine(230, 23, 230, 31, 0xFFE0);
+    // Sol (esquina superior derecha)
+    _canvas->fillRect(213, 20, 14, 14, 0xFEA6);
+    _canvas->drawFastHLine(206, 27, 28, 0xFEA6);  // rayo horizontal
+    _canvas->drawFastVLine(220, 13, 28, 0xFEA6);  // rayo vertical
 
-    uint32_t t = millis() / 2000;
-    _canvas->fillRect(40 + (t % 8), 35, 1, 1, 0xFFFF);
-    _canvas->fillRect(180 - (t % 12), 55, 1, 1, 0xFFFF);
-    _canvas->fillRect(120 + (t % 6), 70, 1, 1, 0xFFFF);
+    // Nube 1 (izquierda)
+    _canvas->fillRect(18, 34, 42, 7, 0xFFFF);
+    _canvas->fillRect(26, 28, 26, 6, 0xFFFF);
+    _canvas->fillRect(35, 24, 14, 4, 0xFFFF);
+
+    // Nube 2 (centro-derecha)
+    _canvas->fillRect(132, 46, 36, 6, 0xFFFF);
+    _canvas->fillRect(140, 41, 22, 5, 0xFFFF);
+
+    // Nube 3 (pequena, centro-izquierda)
+    _canvas->fillRect(80, 60, 26, 5, 0xFFFF);
+    _canvas->fillRect(87, 56, 14, 4, 0xFFFF);
 }
 
 void GotchiRenderer::_drawEmote(Mood mood, int x, int y) {

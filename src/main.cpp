@@ -8,6 +8,7 @@
 #include "apps/gotchi/GotchiApp.h"
 #include "apps/gotchi/MiniGames.h"
 #include "apps/imudemo/ImuDemoApp.h"
+#include "apps/stats/StatsApp.h"
 
 // ── Singletons ────────────────────────────────────────────────────────────────
 static ButtonManager  buttons;
@@ -19,6 +20,7 @@ static BleService     ble;
 // ── App instances ─────────────────────────────────────────────────────────────
 static GotchiApp  gotchiApp;
 static ImuDemoApp imuDemoApp; // mode is set by menu before launch
+static StatsApp   statsApp;
 
 // ── Icon lambdas ──────────────────────────────────────────────────────────────
 
@@ -110,6 +112,8 @@ void setup() {
 
     imuDemoApp.inject(&display);
     gotchiApp.injectRenderer(&display);
+    statsApp.inject(&display);
+    statsApp.setMenuCallback([]() { menu.open(); });
 
     gotchiApp.setMenuCallback([]()  { menu.open(); });
     imuDemoApp.setMenuCallback([]() { menu.open(); });
@@ -143,6 +147,9 @@ void setup() {
     menu.addItem({ "Stick Gotchi", MenuItemType::APP,
                    []() -> AppBase* { return &gotchiApp; },
                    nullptr, iconGotchi, {} });
+    menu.addItem({ "Stats",        MenuItemType::APP,
+                   []() -> AppBase* { return &statsApp; },
+                   nullptr, iconBars, {} });
     menu.addItem({ "Jugar",        MenuItemType::SUBMENU,
                    nullptr, nullptr, iconCoin, gameChildren });
     menu.addItem({ "IMU Sensors",  MenuItemType::SUBMENU,

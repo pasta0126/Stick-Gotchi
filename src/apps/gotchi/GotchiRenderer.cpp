@@ -303,11 +303,24 @@ void GotchiRenderer::_drawStatsBar() {
 
     _canvas->setTextColor(0xAAAA);
     const char* stageStr[] = {"EGG","BABY","YNG","ADLT"};
-    char info[12];
-    snprintf(info, sizeof(info), "G%d %s",
-             _pet->currentID().generation,
-             stageStr[(uint8_t)_pet->stage()]);
-    _canvas->drawString(info, 190, 4);
+    if (_pet->stage() == LifeStage::ADULT) {
+        const char* formStr[] = {"HLT","NRM","NEG"};
+        char info[14];
+        snprintf(info, sizeof(info), "G%d %s/%s",
+                 _pet->currentID().generation,
+                 stageStr[(uint8_t)_pet->stage()],
+                 formStr[(uint8_t)_pet->adultForm()]);
+        uint16_t formColor = (_pet->adultForm() == AdultForm::HEALTHY)   ? (uint16_t)0x07E0 :
+                             (_pet->adultForm() == AdultForm::NEGLECTED) ? (uint16_t)0xF800 : (uint16_t)0xAAAA;
+        _canvas->setTextColor(formColor);
+        _canvas->drawString(info, 175, 4);
+    } else {
+        char info[10];
+        snprintf(info, sizeof(info), "G%d %s",
+                 _pet->currentID().generation,
+                 stageStr[(uint8_t)_pet->stage()]);
+        _canvas->drawString(info, 190, 4);
+    }
 }
 
 void GotchiRenderer::_drawActionBar(uint8_t selected, bool visible) {
@@ -631,11 +644,23 @@ GotchiRenderer::SpritePalette GotchiRenderer::_buildPalette(const GotchiVisual& 
         val_primary   = 200;
         sat_secondary = 180;
         val_secondary = 220;
-    } else if (stage == LifeStage::ADULT) {
-        sat_primary = 220;
-        val_primary = 240;
-        sat_secondary = 180;
-        val_secondary = 255;
+    } else if (stage == LifeStage::ADULT && _pet) {
+        switch (_pet->adultForm()) {
+        case AdultForm::HEALTHY:
+            sat_primary = 240; val_primary = 255;
+            sat_secondary = 210; val_secondary = 255;
+            pal.accent = 0xFFE0;  // golden sparkle accent
+            break;
+        case AdultForm::NEGLECTED:
+            sat_primary = 80;  val_primary = 140;
+            sat_secondary = 60; val_secondary = 120;
+            pal.accent = 0x4208;  // dim grey accent
+            break;
+        default:  // NORMAL
+            sat_primary = 220; val_primary = 240;
+            sat_secondary = 180; val_secondary = 255;
+            break;
+        }
     }
 
     uint8_t hue_primary   = vis.hue_primary;

@@ -134,9 +134,9 @@ void GotchiApp::_executeAction() {
     switch (_selectedAction) {
     case GotchiAction::FEED:     _pet.feed();  break;
     case GotchiAction::PLAY:     _pet.play();  break;
-    case GotchiAction::MEDICINE: /* TODO: Phase MVP */ break;
-    case GotchiAction::LIGHT:    /* TODO: Phase MVP */ break;
-    case GotchiAction::CLEAN:    /* TODO: Phase MVP */ break;
+    case GotchiAction::MEDICINE: _pet.medicine();     break;
+    case GotchiAction::LIGHT:    _pet.toggleLight();  break;
+    case GotchiAction::CLEAN:    _pet.clean();        break;
     default: break;
     }
 }

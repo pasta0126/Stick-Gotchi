@@ -8,6 +8,51 @@ Stick-Gotchi is a self-contained Tamagotchi-style virtual pet firmware for the *
 
 Full design spec: `docs/GDD.md` | Technical architecture: `docs/TECH.md`
 
+## Plane Workflow (task management)
+
+Project: **SGOTCHI** — `https://plane.northernarchive.com/northern-archive/projects/6444bf4f-f5fe-4ef7-b865-6fd6f39adfd0/issues/`
+User: **pasta0126** (ID: `2be9cbeb-4b1b-42aa-8a9c-1c3028797d95`)
+
+### Rules for agents
+
+1. **On session start**: check Plane for issues in `In Progress`. Continue that work before picking anything new.
+2. **Pick up work**: take the lowest `sequence_id` issue in `Todo`, move it to `In Progress`, assign label `agent:claude`, then implement it.
+3. **On completion**: move issue to `Done`, leave a short comment summarizing what was done, then pick up the next `Todo`.
+4. **On blocker**: move issue to `Blocked`, post a comment with `@pasta0126` describing exactly what is needed, then stop and wait.
+5. **Work continuously** through all `Todo` issues while tokens allow. Do not stop between issues unless blocked.
+
+### Key IDs
+
+| State | ID |
+|---|---|
+| Backlog | `eef1f451-4d6d-4647-9168-1e7e09f42aa2` |
+| Todo | `64c60ec4-0e26-4a0d-b2e6-17bc6719151a` |
+| In Progress | `e17c7141-36f2-4c73-ba28-64eb852ddcc2` |
+| Done | `d88ac65e-7c2d-4e4a-8786-f5303579d216` |
+| Blocked | `78d6f783-406d-4e76-8b85-016d6520eeb1` |
+
+| Label | ID |
+|---|---|
+| agent:claude | `0009d9b1-9f67-491f-8161-1c3b74b4e01e` |
+| needs-review | `eb0c0887-3e90-486e-b738-940116781bb6` |
+
+### Plane API helper (Python)
+
+```python
+import urllib.request, json
+KEY = "plane_api_2192863085c44649836e6c9763b86c6d"
+BASE = "https://plane.northernarchive.com/api/v1"
+WS = "northern-archive"
+PID = "6444bf4f-f5fe-4ef7-b865-6fd6f39adfd0"
+
+def plane(method, path, body=None):
+    data = json.dumps(body).encode() if body else None
+    req = urllib.request.Request(f"{BASE}{path}", data=data, method=method,
+          headers={"X-Api-Key": KEY, "Content-Type": "application/json"})
+    with urllib.request.urlopen(req) as r:
+        return json.loads(r.read())
+```
+
 ## Build
 
 Uses **PlatformIO**. From the repo root:

@@ -25,6 +25,12 @@ enum class GotchiBranch : uint8_t {
     LIBRE = 2,
 };
 
+enum class AdultForm : uint8_t {
+    HEALTHY   = 0,  // avg stats >= 70 — vivid, saturated palette
+    NORMAL    = 1,  // avg stats 40-69 — standard palette
+    NEGLECTED = 2,  // avg stats <  40 — desaturated, dark palette
+};
+
 enum class LifeStage : uint8_t {
     EGG   = 0,
     BABY  = 1,
@@ -47,6 +53,9 @@ public:
     void feed();
     void play();
     void pet();
+    void medicine();     // heals if sick; annoyed if healthy
+    void toggleLight();  // ON = bright (prevents night sleep); OFF = dark (allows naps)
+    void clean();        // resets dirtyness accumulator
 
     // Sensor inputs
     void onShake(uint8_t intensity);   // 0=soft 1=medium 2=hard 3=violent
@@ -60,13 +69,16 @@ public:
     void      clearMoodChanged()  { _moodChanged = false; }
     bool      isTempMood()  const { return _tempMood != Mood::NEUTRAL; }
     bool      isSleeping()  const { return _sleeping; }
+    bool      isLightOn()   const { return _lightOn; }
+    uint8_t   dirtyness()   const { return _dirtyness; }
     bool      isDead()      const { return _dead; }
     bool      isNewEgg()    const { return _newEggReady; }
     bool      isEggHatched() const { return _eggHatched; }
     void      restartEgg();
     GotchiID  currentID()   const { return _id; }
-    GotchiBranch branch()   const { return _branch; }
-    LifeStage    stage()    const { return _stage; }
+    GotchiBranch branch()    const { return _branch; }
+    LifeStage    stage()     const { return _stage; }
+    AdultForm    adultForm() const;   // meaningful only at ADULT stage
 
     // NVS persistence
     void save();
@@ -82,6 +94,8 @@ private:
 
     bool     _sleeping    = false;
     bool     _dead        = false;
+    bool     _lightOn     = true;
+    uint8_t  _dirtyness   = 0;
     uint32_t _lowHealthMs = 0;   // time spent at health=0 (death timer)
 
     uint8_t  _hour        = 12;

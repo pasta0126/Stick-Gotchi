@@ -36,6 +36,8 @@ void GotchiPet::save() {
     prefs.putUInt("sa", _stageAgeMs);
     prefs.putUInt("fc", _feedCount);
     prefs.putUInt("pc", _playCount);
+    prefs.putUChar("di", _dirtyness);
+    prefs.putBool("li", _lightOn);
     prefs.end();
 }
 
@@ -49,8 +51,10 @@ void GotchiPet::load() {
     _stage = (LifeStage)prefs.getUChar("st", (uint8_t)LifeStage::EGG);
     _branch = (GotchiBranch)prefs.getUChar("br", (uint8_t)GotchiBranch::BLOB);
     _stageAgeMs = prefs.getUInt("sa", 0);
-    _feedCount = prefs.getUInt("fc", 0);
-    _playCount = prefs.getUInt("pc", 0);
+    _feedCount  = prefs.getUInt("fc", 0);
+    _playCount  = prefs.getUInt("pc", 0);
+    _dirtyness  = prefs.getUChar("di", 0);
+    _lightOn    = prefs.getBool("li", true);
     prefs.end();
 }
 
@@ -97,6 +101,7 @@ void GotchiPet::tick(uint32_t deltaMs) {
         } else {
             _stats.energy = min(100, (int)_stats.energy + 3);
         }
+        if (_dirtyness < 100) _dirtyness++;
     }
 
     _updateHealth(deltaMs);
@@ -142,6 +147,38 @@ void GotchiPet::pet() {
         return;
     }
     if ((now - _petClicksTs) > 8000) _petClicks = 1;
+}
+
+AdultForm GotchiPet::adultForm() const {
+    uint16_t avg = ((uint16_t)_stats.hunger + _stats.energy + _stats.health) / 3;
+    if (avg >= 70) return AdultForm::HEALTHY;
+    if (avg >= 40) return AdultForm::NORMAL;
+    return AdultForm::NEGLECTED;
+}
+
+void GotchiPet::medicine() {
+    if (_dead) return;
+    if (_stats.health < 30) {
+        _stats.health = min(100, (int)_stats.health + 25);
+        _setTempMood(Mood::HAPPY, 4000);
+    } else {
+        _setTempMood(Mood::ANNOYED, 3000);
+    }
+}
+
+void GotchiPet::toggleLight() {
+    if (_dead) return;
+    _lightOn = !_lightOn;
+    if (_lightOn && _sleeping && !(_hour >= 22 || _hour < 7)) {
+        _sleeping = false;
+        _setTempMood(Mood::STARTLED, 2000);
+    }
+}
+
+void GotchiPet::clean() {
+    if (_dead) return;
+    _dirtyness = 0;
+    _setTempMood(Mood::HAPPY, 3000);
 }
 
 // ── Sensor inputs ─────────────────────────────────────────────────────────────
@@ -194,22 +231,26 @@ void GotchiPet::setHour(uint8_t hour) {
 
 void GotchiPet::_updateSleep() {
     bool nightTime = (_hour >= 22 || _hour < 7);
-    if (nightTime && !_sleeping) {
+    if (nightTime && !_lightOn && !_sleeping) {
         _sleeping = true;
-        _setTempMood(Mood::SLEEPING, 0); // persistent until woken
+        _setTempMood(Mood::SLEEPING, 0);
+    }
+    if (nightTime && _lightOn && _sleeping && _stats.energy > 20) {
+        _sleeping = false; // light kept on — gotchi wakes
     }
     if (!nightTime && _sleeping && _stats.energy > 30) {
         _sleeping = false;
     }
-    // Low energy during day → sleep
-    if (!nightTime && !_sleeping && _stats.energy < 15) {
+    // Low energy during day → nap; light off lowers nap threshold
+    uint8_t napThreshold = _lightOn ? 15 : 30;
+    if (!nightTime && !_sleeping && _stats.energy < napThreshold) {
         _sleeping = true;
     }
 }
 
 void GotchiPet::_updateHealth(uint32_t deltaMs) {
     // Neglect = any stat below 20 for extended time
-    bool neglected = (_stats.hunger < 20 || _stats.energy < 10);
+    bool neglected = (_stats.hunger < 20 || _stats.energy < 10 || _dirtyness > 85);
     bool nightProtection = (_hour >= 22 || _hour < 7);
 
     if (neglected && !nightProtection) {
@@ -251,12 +292,13 @@ void GotchiPet::_recalcMood() {
 
     Mood next = Mood::NEUTRAL;
 
-    if (_sleeping)              next = Mood::SLEEPING;
+    if (_sleeping)               next = Mood::SLEEPING;
     else if (_stats.health < 20) next = Mood::SICK;
     else if (_stats.hunger < 20) next = Mood::SAD;
     else if (_stats.energy < 20) next = Mood::PENSIVE;
+    else if (_dirtyness > 70)    next = Mood::PENSIVE;
     else if (_stats.hunger > 70 && _stats.energy > 70 && _stats.health > 70)
-                                next = Mood::HAPPY;
+                                 next = Mood::HAPPY;
 
     if (_mood != next) { _mood = next; _moodChanged = true; }
 }

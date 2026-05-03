@@ -1,0 +1,4 @@
+[plane]
+api_key = "YOUR_API_KEY"
+base_url = "https://plane.northernarchive.com"
+project = "6444bf4f-f5fe-4ef7-b865-6fd6f39adfd0"

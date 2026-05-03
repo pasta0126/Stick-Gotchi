@@ -1,0 +1,75 @@
+# Plane Configuration for Stick-Gotchi Artwork Tasks
+
+[tasks]
+# Sprites del Gotchi por Etapa
+[[tasks]]
+id = "egg-sprite"
+name = "Create egg sprite"
+description = "Create the base egg sprite (12×14 px) with 2 frames for idle animation"
+assignee = "aseprite"
+status = "todo"
+tags = ["art", "gotchi", "egg"]
+
+[[tasks]]
+id = "egg-hatch-animation"
+name = "Create egg hatching animation"
+description = "Create egg hatching animation with 4 frames"
+assignee = "aseprite"
+status = "todo"
+tags = ["art", "gotchi", "egg", "animation"]
+
+[[tasks]]
+id = "baby-sprites"
+name = "Create baby gotchi sprites"
+description = "Create all baby gotchi sprites with animations (idle, eating, playing, sleeping, dying)"
+assignee = "aseprite"
+status = "todo"
+tags = ["art", "gotchi", "baby"]
+
+[[tasks]]
+id = "young-sprites"
+name = "Create young gotchi sprites"
+description = "Create all young gotchi sprites with animations"
+assignee = "aseprite"
+status = "todo"
+tags = ["art", "gotchi", "young"]
+
+[[tasks]]
+id = "adult-sprites"
+name = "Create adult gotchi sprites"
+description = "Create all adult gotchi sprites with animations for all forms (healthy, normal, neglected)"
+assignee = "aseprite"
+status = "todo"
+tags = ["art", "gotchi", "adult"]
+
+[[tasks]]
+id = "emote-sprites"
+name = "Create emote sprites"
+description = "Create all emote sprites for moods"
+assignee = "aseprite"
+status = "todo"
+tags = ["art", "emotes"]
+
+[[tasks]]
+id = "action-icons"
+name = "Create action icons"
+description = "Create all action bar icons (feed, play, medicine, light, clean)"
+assignee = "aseprite"
+status = "todo"
+tags = ["art", "ui", "icons"]
+
+[[tasks]]
+id = "ui-elements"
+name = "Create UI elements"
+description = "Create UI elements like stats bar, action bar, menu elements"
+assignee = "aseprite"
+status = "todo"
+tags = ["art", "ui"]
+
+[[tasks]]
+id = "backgrounds"
+name = "Create backgrounds"
+description = "Create background sprites"
+assignee = "aseprite"
+status = "todo"
+tags = ["art", "backgrounds"]

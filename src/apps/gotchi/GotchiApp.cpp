@@ -93,6 +93,15 @@ bool GotchiApp::onInput(const InputEvent& e) {
         return true;
     }
 
+    // Death → inherited rebirth: consume all input, A accepts new egg
+    if (_pet.isDead() && _pet.isNewEgg()) {
+        if (e.button == ButtonId::A && e.action == ButtonAction::SHORT_PRESS) {
+            _pet.acceptInheritedEgg();
+            _renderer.resetHatch();
+        }
+        return true;
+    }
+
     if (e.button == ButtonId::B && e.action == ButtonAction::LONG_PRESS) {
         if (_menuCallback) _menuCallback();
         return true;

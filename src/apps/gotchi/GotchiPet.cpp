@@ -45,6 +45,10 @@ void GotchiPet::begin() {
         _resolvedType = gotchiTypeFromSeed(vis.body_shape, vis.mark_type);
     }
 
+    _sick          = false;
+    _dirtyHighMs   = 0;
+    _sickRecoverMs = 0;
+    _ageMs         = 0;
     _mood        = Mood::HAPPY;
     _moodChanged = true;
 
@@ -66,6 +70,8 @@ void GotchiPet::save() {
     prefs.putUInt("fc", _feedCount);
     prefs.putUInt("pc", _playCount);
     prefs.putUChar("di", _dirtyness);
+    prefs.putBool("sk", _sick);
+    prefs.putUInt("am", _ageMs);
     prefs.putBool("li", _lightOn);
     prefs.putUChar("ms", _moodScore);
     prefs.putUChar("ah", _avgHealthPct);
@@ -89,6 +95,8 @@ void GotchiPet::load() {
     _feedCount  = prefs.getUInt("fc", 0);
     _playCount  = prefs.getUInt("pc", 0);
     _dirtyness     = prefs.getUChar("di", 0);
+    _sick          = prefs.getBool("sk", false);
+    _ageMs         = prefs.getUInt("am", 0);
     _lightOn       = prefs.getBool("li", true);
     _moodScore     = prefs.getUChar("ms", 65);
     _avgHealthPct  = prefs.getUChar("ah", 100);
@@ -109,6 +117,7 @@ void GotchiPet::tick(uint32_t deltaMs) {
     _updateSleep();
 
     _stageAgeMs += deltaMs;
+    if (_stage != LifeStage::EGG) _ageMs += deltaMs;
 
     bool stageChanged = false;
     if (_stage == LifeStage::EGG && _stageAgeMs >= STAGE_EGG_MS) {
@@ -127,6 +136,17 @@ void GotchiPet::tick(uint32_t deltaMs) {
         stageChanged = true;
     }
 
+    // Dirtyness → sickness trigger (outside decay tick for finer time resolution)
+    if (!_sick && _dirtyness >= 95) {
+        _dirtyHighMs += deltaMs;
+        if (_dirtyHighMs >= 60000) {  // 1 min at max dirty → get sick
+            _sick = true;
+            _dirtyHighMs = 0;
+        }
+    } else {
+        _dirtyHighMs = 0;
+    }
+
     _decayAccum += deltaMs;
     if (_decayAccum >= DECAY_INTERVAL_MS) {
         _decayAccum -= DECAY_INTERVAL_MS;
@@ -143,6 +163,44 @@ void GotchiPet::tick(uint32_t deltaMs) {
         if (dD > 0 && _dirtyness < 100)
             _dirtyness = (uint8_t)min(100, (int)_dirtyness + dD);
         _updateCareHistory();
+
+        // ── Shake stress: decay and sustained health drain ────────────────────
+        if (_shakeStress > 0) {
+            _shakeStress = (_shakeStress > 5) ? _shakeStress - 5 : 0;
+        }
+        if (_shakeStress > 75 && _tempMood == Mood::NEUTRAL) {
+            _setTempMood(Mood::DIZZY, DECAY_INTERVAL_MS);
+        }
+        if (_shakeStress > 50 && _stats.health > 0) {
+            _stats.health--;
+        }
+
+        // ── Noise accumulator: build up on sustained loud, decay in quiet ─────
+        if (_lastNoiseDb > 70) {
+            _noiseAccum = (uint8_t)min(100, (int)_noiseAccum + 10);
+            _quietMs = 0;
+        } else {
+            _noiseAccum = (_noiseAccum > 5) ? _noiseAccum - 5 : 0;
+            _quietMs += DECAY_INTERVAL_MS;
+        }
+        if (_noiseAccum > 80 && _stats.health > 0) {
+            _stats.health--;
+        }
+        if (_noiseAccum > 60 && _tempMood == Mood::NEUTRAL) {
+            _setTempMood(Mood::ANNOYED, DECAY_INTERVAL_MS);
+        }
+
+        // ── Sickness: extra health drain each decay tick ──────────────────────
+        if (_sick && _stats.health > 0) {
+            _stats.health = (_stats.health > 1) ? _stats.health - 1 : 0;
+        }
+
+        // ── Quiet bonus: extended calm environment lifts mood ─────────────────
+        if (_quietMs >= 60000 && _noiseAccum == 0 && !_sleeping
+                && _mood != Mood::HAPPY && _mood != Mood::EXCITED && _mood != Mood::LAUGHING) {
+            _setTempMood(Mood::HAPPY, 15000);
+            _quietMs = 0;
+        }
     }
 
     _updateHealth(deltaMs);
@@ -199,9 +257,14 @@ AdultForm GotchiPet::adultForm() const {
 
 void GotchiPet::medicine() {
     if (_dead) return;
-    if (_stats.health < 30) {
-        _stats.health = min(100, (int)_stats.health + 25);
-        _setTempMood(Mood::HAPPY, 4000);
+    if (_sick) {
+        _sick = false;
+        _sickRecoverMs = 0;
+        _stats.health = (uint8_t)min(100, (int)_stats.health + 20);
+        _setTempMood(Mood::HAPPY, 5000);
+    } else if (_stats.health < 50) {
+        _stats.health = (uint8_t)min(100, (int)_stats.health + 15);
+        _setTempMood(Mood::HAPPY, 3000);
     } else {
         _setTempMood(Mood::ANNOYED, 3000);
     }
@@ -226,6 +289,12 @@ void GotchiPet::clean() {
 
 void GotchiPet::onShake(uint8_t intensity) {
     if (_dead) return;
+
+    // Accumulate stress — sustained trauma causes health drain even after shaking stops
+    static constexpr uint8_t STRESS_ADD[4] = { 3, 8, 15, 25 };
+    uint8_t add = STRESS_ADD[min((int)intensity, 3)];
+    _shakeStress = (uint8_t)min(100, (int)_shakeStress + add);
+
     switch (intensity) {
     case 0: // soft
         if (_sleeping) {
@@ -251,17 +320,17 @@ void GotchiPet::onShake(uint8_t intensity) {
 
 void GotchiPet::onNoiseLevel(uint8_t db) {
     if (_dead) return;
+    _lastNoiseDb = db;
+    // Immediate reactions
     if (db > 85) {
         _setTempMood(Mood::STARTLED, 2000);
     } else if (db > 70) {
-        if (_sleeping) {
-            _sleeping = false;
-        }
-        // Sustained noise handled in tick via accumulated bad mood
+        if (_sleeping) _sleeping = false;
         if (_tempMood == Mood::NEUTRAL && _mood != Mood::ANNOYED) {
             _setTempMood(Mood::ANNOYED, 5000);
         }
     }
+    // Sustained accumulation is processed in the decay tick
 }
 
 void GotchiPet::setHour(uint8_t hour) {
@@ -290,6 +359,20 @@ void GotchiPet::_updateSleep() {
 }
 
 void GotchiPet::_updateHealth(uint32_t deltaMs) {
+    // Natural sickness recovery: 5 min of good conditions while sick
+    if (_sick) {
+        bool goodConditions = (_stats.health > 50 && _stats.hunger > 60 && _dirtyness < 30);
+        if (goodConditions) {
+            _sickRecoverMs += deltaMs;
+            if (_sickRecoverMs >= 300000) {
+                _sick = false;
+                _sickRecoverMs = 0;
+            }
+        } else {
+            _sickRecoverMs = 0;
+        }
+    }
+
     // Neglect = any stat below 20 for extended time
     bool neglected = (_stats.hunger < 20 || _stats.energy < 10 || _dirtyness > 85);
     bool nightProtection = (_hour >= 22 || _hour < 7);
@@ -333,8 +416,8 @@ void GotchiPet::_recalcMood() {
 
     Mood next = Mood::NEUTRAL;
 
-    if (_sleeping)               next = Mood::SLEEPING;
-    else if (_stats.health < 20) next = Mood::SICK;
+    if (_sleeping)                           next = Mood::SLEEPING;
+    else if (_sick || _stats.health < 20)   next = Mood::SICK;
     else if (_stats.hunger < 20) next = Mood::SAD;
     else if (_stats.energy < 20) next = Mood::PENSIVE;
     else if (_dirtyness > 70)    next = Mood::PENSIVE;
@@ -364,6 +447,42 @@ void GotchiPet::restartEgg() {
     _moodScore     = 65;
     _avgHealthPct  = 100;
     _neglectCount  = 0;
+    _sick          = false;
+    _dirtyHighMs   = 0;
+    _sickRecoverMs = 0;
+    _ageMs         = 0;
+    save();
+}
+
+void GotchiPet::acceptInheritedEgg() {
+    // _handleDeath() already computed the new inherited ID and saved lineage.
+    // Reset live state; apply heritage bonuses from the lineage.
+    _dead          = false;
+    _newEggReady   = false;
+    _stage         = LifeStage::EGG;
+    _stageAgeMs    = 0;
+    _eggHatched    = false;
+    _feedCount     = 0;
+    _playCount     = 0;
+    _ageMs         = 0;
+    _sick          = false;
+    _sickRecoverMs = 0;
+    _dirtyHighMs   = 0;
+    _dirtyness     = 0;
+    _lowHealthMs   = 0;
+    _shakeStress   = 0;
+    _noiseAccum    = 0;
+    _stats.hunger  = 80;
+    _stats.energy  = 80;
+    _stats.health  = (uint8_t)min(100, 100 + (int)_heritage.bonus_health);
+    _moodScore     = (uint8_t)min(100u, 65u + (uint8_t)_heritage.bonus_mood);
+    _avgHealthPct  = 100;
+    _neglectCount  = 0;
+    GotchiVisual vis = decodeVisual(_id.visual_seed);
+    _resolvedType  = gotchiTypeFromSeed(vis.body_shape, vis.mark_type);
+    _typeLoaded    = true;
+    _mood          = Mood::HAPPY;
+    _moodChanged   = true;
     save();
 }
 
@@ -401,7 +520,7 @@ void GotchiPet::_updateCareHistory() {
     _moodScore    = (uint8_t)((_moodScore    * 15u + moodPts)       / 16u);
     _avgHealthPct = (uint8_t)((_avgHealthPct * 15u + _stats.health) / 16u);
 
-    bool critical = (_stats.hunger < 20 || _stats.energy < 10 || _stats.health < 20);
+    bool critical = (_stats.hunger < 20 || _stats.energy < 10 || _stats.health < 20 || _sick);
     if (critical && _neglectCount < 255) _neglectCount++;
 }
 
@@ -409,11 +528,17 @@ void GotchiPet::_handleDeath() {
     _dead = true;
 
     GotchiAncestor dying{};
-    dying.id = _id;
-    dying.days_lived = (uint16_t)(millis() / 86400000UL);
-    dying.cause_of_death = (_stats.hunger < 10) ? 0 : 1;
+    dying.id         = _id;
+    dying.days_lived = (uint16_t)(_ageMs / 86400000UL);
+    if      (_stats.hunger < 10)   dying.cause_of_death = 0;  // starvation
+    else if (_sick)                dying.cause_of_death = 1;  // sickness
+    else if (_dirtyness > 90)      dying.cause_of_death = 2;  // filth
+    else if (_shakeStress > 50)    dying.cause_of_death = 3;  // abuse
+    else                           dying.cause_of_death = 4;  // neglect/other
     dying.avg_mood_pct   = _moodScore;
     dying.avg_health_pct = _avgHealthPct;
+    _lastDaysLived  = dying.days_lived;
+    _lastDeathCause = dying.cause_of_death;
 
     GotchiHeritage newHeritage = GotchiLineage::computeHeritage(dying, _ancestors);
     _lineage.shiftAncestors(_ancestors, dying);

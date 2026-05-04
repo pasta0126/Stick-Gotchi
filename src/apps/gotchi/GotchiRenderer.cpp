@@ -480,7 +480,7 @@ void GotchiRenderer::_drawSleepZs(int cx, int cy) {
 void GotchiRenderer::_drawIndicators() {
     struct Indicator { const uint8_t* data; uint16_t color; bool show; };
     Indicator inds[] = {
-        { SPR_IND_SICK,   0xF800, _pet->stats().health < 20 },
+        { SPR_IND_SICK,   0xF800, _pet->isSick() },
         { SPR_IND_HUNGRY, 0xFD20, _pet->stats().hunger < 20 && !_pet->isSleeping() },
         { SPR_IND_DIRTY,  0xC618, _pet->dirtyness() > 70 },
     };
@@ -658,13 +658,7 @@ void GotchiRenderer::_drawFrame() {
     }
 
     if (_pet->isDead()) {
-        GotchiVisual vis = decodeVisual(_pet->currentID().visual_seed);
-        SpritePalette pal = _buildPalette(vis, LifeStage::EGG, GotchiType::ORGANIC);
-        int cx = 120;
-        int cy = 62;
-        _drawSprite(SPR_DEATH, 16, 16,
-                    cx - (16 * 2) / 2, cy - (16 * 2) / 2,
-                    2, pal);
+        _drawDeathScreen();
     } else {
         uint32_t now = millis();
         uint32_t delta = now - _lastFrameMs;
@@ -721,6 +715,10 @@ void GotchiRenderer::_drawFrame() {
 
         if (_pet->stage() != LifeStage::EGG) {
             _drawIndicators();
+        }
+
+        if (_pet->isAgony()) {
+            _drawAgonyOverlay();
         }
 
         _drawStatsBar();
@@ -795,6 +793,56 @@ void GotchiRenderer::resetHatch() {
     _hatchAccumMs = 0;
     _animTag      = AnimTag::IDLE;
     _animFrame    = 0;
+}
+
+void GotchiRenderer::_drawDeathScreen() {
+    static const char* CAUSE_NAMES[] = { "hambre", "enfermedad", "suciedad", "maltrato", "abandono" };
+
+    _canvas->fillScreen(0x0000);
+    _canvas->fillRect(0, 0, 240, 18, 0x0000);
+
+    // Skull sprite centered in play area
+    GotchiVisual vis = decodeVisual(_pet->currentID().visual_seed);
+    SpritePalette pal = _buildPalette(vis, LifeStage::EGG, GotchiType::ORGANIC);
+    pal.primary   = 0xC618;  // grey skull
+    pal.secondary = 0xFFFF;
+    constexpr int SKULL_SCALE = 3;
+    constexpr int SKULL_W = 16, SKULL_H = 16;
+    int sx = 120 - (SKULL_W * SKULL_SCALE) / 2;
+    int sy = 28;
+    _drawSprite(SPR_DEATH, SKULL_W, SKULL_H, sx, sy, SKULL_SCALE, pal);
+
+    _canvas->setTextSize(1);
+
+    // Generation and days
+    char genBuf[24];
+    uint8_t cause = _pet->lastDeathCause();
+    snprintf(genBuf, sizeof(genBuf), "Gen %d  |  %d dias",
+             _pet->currentID().generation,
+             _pet->lastDaysLived());
+    _canvas->setTextColor(0x8410);
+    _canvas->drawCenterString(genBuf, 120, 80);
+
+    // Cause of death
+    char causeBuf[20];
+    const char* causeName = (cause < 5) ? CAUSE_NAMES[cause] : "desconocido";
+    snprintf(causeBuf, sizeof(causeBuf), "causa: %s", causeName);
+    _canvas->setTextColor(0xF800);
+    _canvas->drawCenterString(causeBuf, 120, 90);
+
+    // Prompt
+    _canvas->fillRect(0, 108, 240, 27, 0x0861);
+    _canvas->setTextColor(TFT_WHITE);
+    _canvas->drawCenterString("[ Btn A ]  nuevo huevo", 120, 118);
+}
+
+void GotchiRenderer::_drawAgonyOverlay() {
+    // Pulse red border at ~1 Hz to signal imminent death
+    if ((millis() / 500) % 2 == 0) {
+        uint16_t red = 0xF800;
+        _canvas->drawRect(0,  18, 240, 90, red);
+        _canvas->drawRect(1,  19, 238, 88, red);
+    }
 }
 
 void GotchiRenderer::_drawHatchPrompt() {

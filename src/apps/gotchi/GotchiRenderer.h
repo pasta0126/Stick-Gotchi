@@ -9,6 +9,11 @@
 #include "GotchiBabySprites.h"
 #include "GotchiYoungSprites.h"
 #include "GotchiAdultSprites.h"
+#include "GotchiEmoteSprites.h"
+#include "GotchiActionSprites.h"
+#include "GotchiTypeIdentitySprites.h"
+#include "GotchiHUDSprites.h"
+#include "GotchiIndicatorSprites.h"
 #include "../../generated/sprites_egg.h"
 #include "../../generated/sprites_coin.h"
 #include "../../generated/sprites_8magicball.h"
@@ -70,12 +75,16 @@ private:
 
     void _drawFrame();
     void _drawBackground();
+    void _drawHabitat(GotchiType type);
     void _drawEmote(Mood mood, int x, int y);
     void _updatePosition(uint32_t deltaMs);
     void _drawStatsBar();
     void _drawActionBar(uint8_t selected, bool visible);
     void _drawSleepZs(int cx, int cy);
+    void _drawIndicators();
     void _drawHatchPrompt();
+    void _drawDeathScreen();
+    void _drawAgonyOverlay();
     void _drawFlipCoin();
     void _drawMagic8Ball();
     SpriteFrame _selectSprite(LifeStage stage, GotchiType type, uint8_t frame);

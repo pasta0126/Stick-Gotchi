@@ -65,6 +65,8 @@ public:
     void      clearMoodChanged()  { _moodChanged = false; }
     bool      isTempMood()   const { return _tempMood != Mood::NEUTRAL; }
     bool      isSleeping()   const { return _sleeping; }
+    bool      isSick()       const { return _sick || _stats.health < 20; }
+    bool      isAgony()      const { return !_dead && _stats.health == 0; }
     bool      isLightOn()    const { return _lightOn; }
     uint8_t   dirtyness()    const { return _dirtyness; }
     uint8_t   moodScore()    const { return _moodScore; }
@@ -73,7 +75,10 @@ public:
     bool      isDead()      const { return _dead; }
     bool      isNewEgg()    const { return _newEggReady; }
     bool      isEggHatched() const { return _eggHatched; }
+    uint16_t  lastDaysLived()  const { return _lastDaysLived; }
+    uint8_t   lastDeathCause() const { return _lastDeathCause; }
     void      restartEgg();
+    void      acceptInheritedEgg();
     GotchiID  currentID()   const { return _id; }
     LifeStage    stage()     const { return _stage; }
     GotchiType   gotchiType() const;
@@ -92,14 +97,25 @@ private:
     uint32_t _moodExpiry  = 0;
 
     bool     _sleeping    = false;
+    bool     _sick        = false;
     bool     _dead        = false;
     bool     _lightOn     = true;
     uint8_t  _dirtyness   = 0;
-    uint32_t _lowHealthMs = 0;   // time spent at health=0 (death timer)
+    uint32_t _lowHealthMs    = 0;  // time spent at health=0 (death timer)
+    uint32_t _dirtyHighMs    = 0;  // time at dirtyness >= 95; triggers sickness
+    uint32_t _sickRecoverMs  = 0;  // time in good conditions while sick; natural recovery
+    uint32_t _ageMs          = 0;  // real lived age (non-egg), persisted
+    uint16_t _lastDaysLived  = 0;
+    uint8_t  _lastDeathCause = 0;  // 0=hunger 1=sick 2=dirty 3=abuse 4=neglect
 
     uint8_t  _moodScore    = 65;   // EWMA of mood quality, 0-100
     uint8_t  _avgHealthPct = 100;  // EWMA of health, 0-100
     uint8_t  _neglectCount = 0;    // decay ticks where any stat was critically low
+
+    uint8_t  _shakeStress  = 0;   // 0-100, accumulated shake trauma; decays over time
+    uint8_t  _noiseAccum   = 0;   // 0-100, sustained noise exposure; decays in quiet
+    uint32_t _quietMs      = 0;   // consecutive ms of calm environment (db < 70)
+    uint8_t  _lastNoiseDb  = 0;   // most recent mic reading, sampled each decay tick
 
     uint8_t  _hour        = 12;
 

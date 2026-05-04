@@ -356,7 +356,7 @@ void GotchiRenderer::_drawSleepZs(int cx, int cy) {
     }
 }
 
-SpriteFrame GotchiRenderer::_selectSprite(LifeStage stage, GotchiBranch branch, uint8_t frame) {
+SpriteFrame GotchiRenderer::_selectSprite(LifeStage stage, GotchiType type, uint8_t frame) {
     if (stage == LifeStage::EGG) {
         if (_animTag == AnimTag::HATCH) {
             const uint8_t* hatchFrames[] = {
@@ -365,53 +365,11 @@ SpriteFrame GotchiRenderer::_selectSprite(LifeStage stage, GotchiBranch branch, 
             };
             return SpriteFrame{hatchFrames[frame % EGG_HATCH_FRAMES], EGG_W, EGG_H, 3};
         }
-        const uint8_t* idleFrames[] = {SPR_EGG_IDLE_F0, SPR_EGG_IDLE_F1};
-        return SpriteFrame{idleFrames[frame % EGG_IDLE_FRAMES], EGG_W, EGG_H, 3};
+        return gotchiTypeEggFrame(type, frame);
     }
-
-    if (branch == GotchiBranch::BLOB) {
-        if (stage == LifeStage::BABY) {
-            return frame == 0 ?
-                SpriteFrame{SPR_BLOB_BABY_F0, 16, 16, 3} :
-                SpriteFrame{SPR_BLOB_BABY_F1, 16, 16, 3};
-        } else if (stage == LifeStage::YOUNG) {
-            return frame == 0 ?
-                SpriteFrame{SPR_BLOB_YOUNG_F0, 20, 22, 2} :
-                SpriteFrame{SPR_BLOB_YOUNG_F1, 20, 22, 2};
-        } else {
-            return frame == 0 ?
-                SpriteFrame{SPR_BLOB_ADULT_F0, 24, 26, 2} :
-                SpriteFrame{SPR_BLOB_ADULT_F1, 24, 26, 2};
-        }
-    } else if (branch == GotchiBranch::PLANT) {
-        if (stage == LifeStage::BABY) {
-            return frame == 0 ?
-                SpriteFrame{SPR_PLANT_BABY_F0, 16, 16, 3} :
-                SpriteFrame{SPR_PLANT_BABY_F1, 16, 16, 3};
-        } else if (stage == LifeStage::YOUNG) {
-            return frame == 0 ?
-                SpriteFrame{SPR_PLANT_YOUNG_F0, 20, 22, 2} :
-                SpriteFrame{SPR_PLANT_YOUNG_F1, 20, 22, 2};
-        } else {
-            return frame == 0 ?
-                SpriteFrame{SPR_PLANT_ADULT_F0, 24, 26, 2} :
-                SpriteFrame{SPR_PLANT_ADULT_F1, 24, 26, 2};
-        }
-    } else {
-        if (stage == LifeStage::BABY) {
-            return frame == 0 ?
-                SpriteFrame{SPR_LIBRE_BABY_F0, 16, 16, 3} :
-                SpriteFrame{SPR_LIBRE_BABY_F1, 16, 16, 3};
-        } else if (stage == LifeStage::YOUNG) {
-            return frame == 0 ?
-                SpriteFrame{SPR_LIBRE_YOUNG_F0, 20, 22, 2} :
-                SpriteFrame{SPR_LIBRE_YOUNG_F1, 20, 22, 2};
-        } else {
-            return frame == 0 ?
-                SpriteFrame{SPR_LIBRE_ADULT_F0, 24, 26, 2} :
-                SpriteFrame{SPR_LIBRE_ADULT_F1, 24, 26, 2};
-        }
-    }
+    if (stage == LifeStage::BABY)  return gotchiTypeBabyFrame(type, frame);
+    if (stage == LifeStage::YOUNG) return gotchiTypeYoungFrame(type, frame);
+    return gotchiTypeAdultFrame(type, frame);
 }
 
 void GotchiRenderer::_drawFlipCoin() {
@@ -556,7 +514,7 @@ void GotchiRenderer::_drawFrame() {
 
     if (_pet->isDead()) {
         GotchiVisual vis = decodeVisual(_pet->currentID().visual_seed);
-        SpritePalette pal = _buildPalette(vis, LifeStage::EGG, GotchiBranch::BLOB);
+        SpritePalette pal = _buildPalette(vis, LifeStage::EGG, GotchiType::ORGANIC);
         int cx = 120;
         int cy = 62;
         _drawSprite(SPR_DEATH, 16, 16,
@@ -577,7 +535,8 @@ void GotchiRenderer::_drawFrame() {
         _updatePosition(delta);
 
         GotchiVisual vis = decodeVisual(_pet->currentID().visual_seed);
-        SpritePalette pal = _buildPalette(vis, _pet->stage(), _pet->branch());
+        GotchiType type  = _pet->gotchiType();
+        SpritePalette pal = _buildPalette(vis, _pet->stage(), type);
 
         // Manage egg animation state
         if (_pet->stage() == LifeStage::EGG) {
@@ -599,7 +558,7 @@ void GotchiRenderer::_drawFrame() {
         }
 
         uint8_t frameIdx = (_animTag == AnimTag::HATCH) ? _hatchFrame : _animFrame;
-        SpriteFrame frame = _selectSprite(_pet->stage(), _pet->branch(), frameIdx);
+        SpriteFrame frame = _selectSprite(_pet->stage(), type, frameIdx);
 
         int spriteX = (int)_posX - (frame.w * frame.scale) / 2;
         int spriteY = (int)_posY - (frame.h * frame.scale) / 2;
@@ -628,7 +587,7 @@ void GotchiRenderer::_drawFrame() {
 
 }
 
-GotchiRenderer::SpritePalette GotchiRenderer::_buildPalette(const GotchiVisual& vis, LifeStage stage, GotchiBranch branch) {
+GotchiRenderer::SpritePalette GotchiRenderer::_buildPalette(const GotchiVisual& vis, LifeStage stage, GotchiType type) {
     SpritePalette pal;
 
     pal.transparent = 0x0000;
@@ -666,10 +625,10 @@ GotchiRenderer::SpritePalette GotchiRenderer::_buildPalette(const GotchiVisual& 
     uint8_t hue_primary   = vis.hue_primary;
     uint8_t hue_secondary = vis.hue_secondary;
 
-    if (branch == GotchiBranch::PLANT) {
+    if (type == GotchiType::ELEMENTAL) {
         hue_primary = 5 + (millis() / 10000) % 6;
         hue_secondary = 28 + (millis() / 15000) % 4;
-    } else if (branch == GotchiBranch::LIBRE) {
+    } else if (type == GotchiType::ENERGY || type == GotchiType::SOUL) {
         hue_primary = 15 + (millis() / 12000) % 10;
         val_primary = min(255, val_primary + 20);
     }

@@ -4,6 +4,11 @@
 #include <freertos/task.h>
 #include "GotchiPet.h"
 #include "GotchiSprites.h"
+#include "GotchiEggSprites.h"
+#include "GotchiTypeSprites.h"
+#include "GotchiBabySprites.h"
+#include "GotchiYoungSprites.h"
+#include "GotchiAdultSprites.h"
 #include "../../generated/sprites_egg.h"
 #include "../../generated/sprites_coin.h"
 #include "../../generated/sprites_8magicball.h"
@@ -73,7 +78,7 @@ private:
     void _drawHatchPrompt();
     void _drawFlipCoin();
     void _drawMagic8Ball();
-    SpriteFrame _selectSprite(LifeStage stage, GotchiBranch branch, uint8_t frame);
+    SpriteFrame _selectSprite(LifeStage stage, GotchiType type, uint8_t frame);
 
     enum class AnimTag : uint8_t { IDLE, EAT, PLAY, SLEEP, DIE, HATCH };
     AnimTag  _animTag      = AnimTag::IDLE;
@@ -91,7 +96,7 @@ private:
         uint16_t color5 = 0;
     };
 
-    SpritePalette _buildPalette(const GotchiVisual& vis, LifeStage stage, GotchiBranch branch);
+    SpritePalette _buildPalette(const GotchiVisual& vis, LifeStage stage, GotchiType type);
     void _drawSprite(const uint8_t* data, uint8_t w, uint8_t h,
                      int x, int y, uint8_t scale, const SpritePalette& pal);
 };

@@ -2,6 +2,11 @@
 #include <Arduino.h>
 #include <Preferences.h>
 
+GotchiType GotchiPet::gotchiType() const {
+    GotchiVisual vis = decodeVisual(_id.visual_seed);
+    return gotchiTypeFromSeed(vis.body_shape, vis.mark_type);
+}
+
 void GotchiPet::begin() {
     _stats.hunger = 80;
     _stats.energy = 80;

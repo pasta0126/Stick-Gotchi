@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include "../../gotchi/GotchiDNA.h"
 #include "../../gotchi/GotchiLineage.h"
+#include "../../gotchi/GotchiType.h"
 
 enum class Mood : uint8_t {
     NEUTRAL   = 0,  // Arduino.h defines DEFAULT as a macro — do not rename
@@ -78,6 +79,7 @@ public:
     GotchiID  currentID()   const { return _id; }
     GotchiBranch branch()    const { return _branch; }
     LifeStage    stage()     const { return _stage; }
+    GotchiType   gotchiType() const;
     AdultForm    adultForm() const;   // meaningful only at ADULT stage
 
     // NVS persistence

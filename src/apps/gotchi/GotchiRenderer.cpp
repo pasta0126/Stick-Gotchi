@@ -166,7 +166,8 @@ void GotchiRenderer::_updatePosition(uint32_t deltaMs) {
         _nextDirChangeMs = 2000 + random(1000, 3000);
     }
 
-    if (_pet->branch() == GotchiBranch::LIBRE) {
+    GotchiType t = _pet->gotchiType();
+    if (t == GotchiType::ENERGY || t == GotchiType::SOUL) {
         _posY += sinf(millis() * 0.003f) * 0.5f;
     }
 
@@ -224,58 +225,142 @@ void GotchiRenderer::_drawBackground() {
     _canvas->fillRect(87, 56, 14, 4, 0xFFFF);
 }
 
-void GotchiRenderer::_drawEmote(Mood mood, int x, int y) {
-    uint16_t bubbleColor = 0xFFFF;
-    _canvas->fillRoundRect(x-6, y-12, 12, 10, 2, bubbleColor);
-    _canvas->drawRoundRect(x-6, y-12, 12, 10, 2, 0xAAAA);
+void GotchiRenderer::_drawHabitat(GotchiType type) {
+    switch (type) {
 
-    _canvas->fillTriangle(x-2, y-2, x+2, y-2, x, y+1, bubbleColor);
+    case GotchiType::ORGANIC:
+        _drawBackground();
+        break;
 
-    switch (mood) {
-    case Mood::HAPPY:
-    case Mood::LAUGHING:
-        _canvas->fillCircle(x-2, y-8, 2, 0xF800);
-        _canvas->fillCircle(x+2, y-8, 2, 0xF800);
-        _canvas->fillTriangle(x-3, y-7, x+3, y-7, x, y-4, 0xF800);
-        break;
-    case Mood::SLEEPING:
-        _canvas->drawLine(x-2, y-9, x+2, y-9, 0x001F);
-        _canvas->drawLine(x+2, y-9, x-2, y-5, 0x001F);
-        _canvas->drawLine(x-2, y-5, x+2, y-5, 0x001F);
-        break;
-    case Mood::SAD:
-        _canvas->fillCircle(x, y-6, 2, 0x001F);
-        _canvas->fillTriangle(x-2, y-6, x+2, y-6, x, y-3, 0x001F);
-        break;
-    case Mood::ANGRY:
-    case Mood::ANNOYED:
-        _canvas->fillRect(x-3, y-9, 6, 3, 0x8410);
-        _canvas->drawLine(x, y-6, x-1, y-4, 0xFFE0);
-        _canvas->drawLine(x-1, y-4, x+1, y-4, 0xFFE0);
-        break;
-    case Mood::SICK:
-        _canvas->drawFastHLine(x-2, y-7, 5, 0x07E0);
-        _canvas->drawFastVLine(x, y-9, 5, 0x07E0);
-        break;
-    case Mood::SCARED:
-    case Mood::STARTLED:
-        _canvas->fillRect(x-1, y-9, 2, 4, 0xFFE0);
-        _canvas->fillRect(x-1, y-4, 2, 2, 0xFFE0);
-        break;
-    case Mood::EXCITED:
-        _canvas->drawLine(x, y-9, x, y-5, 0xFFE0);
-        _canvas->drawLine(x-3, y-8, x+3, y-6, 0xFFE0);
-        _canvas->drawLine(x+3, y-8, x-3, y-6, 0xFFE0);
-        break;
-    case Mood::PENSIVE:
-    case Mood::DIZZY:
-        _canvas->drawCircle(x, y-7, 3, 0x8888);
-        _canvas->fillRect(x-1, y-8, 2, 2, 0x8888);
-        break;
-    default:
-        _canvas->fillCircle(x, y-7, 1, 0x8888);
+    case GotchiType::CRYSTAL: {
+        // Ice cave — dark navy background, icy ground, crystal spikes
+        _canvas->fillRect(0, 18, 240, 90, 0x0010);
+        // Stalactites from ceiling
+        const int stx[] = {40, 80, 130, 175, 210};
+        const int stw[] = {12, 7,  16,  9,   11};
+        const int sth[] = {22, 14, 18, 20,   15};
+        for (int i = 0; i < 5; i++) {
+            _canvas->fillTriangle(stx[i], 18, stx[i]+stw[i], 18,
+                                  stx[i]+stw[i]/2, 18+sth[i], 0x4DF7);
+        }
+        // Crystal floor columns
+        const int cpx[] = {15, 65, 140, 190};
+        const int cpw[] = {10, 6, 12, 8};
+        for (int i = 0; i < 4; i++) {
+            _canvas->fillRect(cpx[i], 85, cpw[i], 13, 0x8EFF);
+            _canvas->drawRect(cpx[i], 85, cpw[i], 13, 0xCEFF);
+        }
+        // Ground: icy platform
+        _canvas->fillRect(0, 97, 240, 11, 0x2D7F);
+        _canvas->fillRect(0, 98, 240, 3,  0x8EFF);  // bright ice surface
         break;
     }
+
+    case GotchiType::ENERGY: {
+        // Plasma field — dark background, glowing grid, energy glow
+        _canvas->fillRect(0, 18, 240, 90, 0x080C);
+        // Grid lines
+        for (int y = 25; y < 96; y += 8)
+            _canvas->drawFastHLine(0, y, 240, 0x2104);
+        for (int x = 0; x < 240; x += 20)
+            _canvas->drawFastVLine(x, 18, 78, 0x2104);
+        // Energy nodes at grid intersections
+        const int enx[] = {40, 100, 160, 220, 20, 80, 140, 200};
+        const int eny[] = {33, 41, 33, 57, 57, 65, 49, 41};
+        for (int i = 0; i < 8; i++)
+            _canvas->fillRect(enx[i]-1, eny[i]-1, 3, 3, 0xFFE0);
+        // Glow ground
+        _canvas->fillRect(0, 95, 240, 2,  0xFFE0);
+        _canvas->fillRect(0, 97, 240, 11, 0x2104);
+        break;
+    }
+
+    case GotchiType::CYBER: {
+        // Cyberpunk room — dark walls, neon accents, lit floor grid
+        _canvas->fillRect(0, 18, 240, 90, 0x0821);
+        // Dark panels on walls
+        _canvas->fillRect(4,  25, 50, 55, 0x0842);
+        _canvas->fillRect(186, 25, 50, 55, 0x0842);
+        _canvas->drawRect(4,  25, 50, 55, 0x03EF);
+        _canvas->drawRect(186, 25, 50, 55, 0x03EF);
+        // Neon strips on walls
+        _canvas->drawFastHLine(0, 24, 240, 0xF800);
+        _canvas->drawFastHLine(0, 93, 240, 0x03EF);
+        // Floor with cyan grid
+        _canvas->fillRect(0, 94, 240, 14, 0x1082);
+        for (int x = 0; x < 240; x += 24)
+            _canvas->drawFastVLine(x, 94, 14, 0x03EF);
+        _canvas->drawFastHLine(0, 101, 240, 0x03EF);
+        break;
+    }
+
+    case GotchiType::ELEMENTAL: {
+        // Volcano — red-orange sky gradient, rocky ground, lava crack
+        _canvas->fillRect(0, 18, 240, 28, 0x8000);   // dark red top sky
+        _canvas->fillRect(0, 46, 240, 28, 0xC820);   // mid orange
+        _canvas->fillRect(0, 74, 240, 22, 0xFC40);   // bright orange horizon
+        // Rock formations
+        _canvas->fillRect(0,  85, 28, 13, 0x2104);
+        _canvas->fillRect(212, 82, 28, 16, 0x2104);
+        _canvas->fillTriangle(0, 85, 28, 85, 14, 70, 0x2104);
+        _canvas->fillTriangle(212, 82, 240, 82, 226, 66, 0x2104);
+        // Rocky ground
+        _canvas->fillRect(0, 97, 240, 11, 0x3186);
+        // Lava crack glow
+        _canvas->drawFastHLine(0, 96, 240, 0xFD20);
+        _canvas->drawFastHLine(0, 97, 240, 0xFC00);
+        break;
+    }
+
+    case GotchiType::SOUL: {
+        // Cosmic void — deep space, stars, floating platform
+        _canvas->fillRect(0, 18, 240, 90, 0x0801);
+        // Stars (fixed positions)
+        const int sx[] = {12, 34, 58, 82, 110, 140, 168, 198, 220,
+                           25, 70, 95, 130, 160, 210, 45, 155, 185};
+        const int sy[] = {22, 35, 28, 44,  24,  38,  28,  22,  42,
+                           55, 50, 32,  60,  48,  35,  68,  30,  58};
+        for (int i = 0; i < 18; i++) {
+            uint16_t starCol = (i % 3 == 0) ? 0xFFFF : (i % 3 == 1) ? 0xCCCC : 0xA01F;
+            _canvas->fillRect(sx[i], sy[i], (i % 4 == 0) ? 2 : 1, (i % 4 == 0) ? 2 : 1, starCol);
+        }
+        // Floating platform
+        _canvas->fillRect(60, 93, 120, 7,  0x5820);
+        _canvas->drawRect(60, 93, 120, 7,  0xA01F);
+        _canvas->drawFastHLine(60, 94, 120, 0xD01F);  // top shine
+        // Void floor
+        _canvas->fillRect(0, 100, 240, 8, 0x0000);
+        break;
+    }
+
+    default:
+        _drawBackground();
+        break;
+    }
+}
+
+void GotchiRenderer::_drawEmote(Mood mood, int x, int y) {
+    // Bubble sized to hold 8×8 sprite at scale 2 (→16×16) with 3px padding each side
+    constexpr int BW = 22, BH = 20;
+    int bx = x - BW / 2;
+    int by = y - BH - 4;
+
+    uint16_t bubbleColor = 0xFFFF;
+    _canvas->fillRoundRect(bx, by, BW, BH, 3, bubbleColor);
+    _canvas->drawRoundRect(bx, by, BW, BH, 3, 0xC618);
+    _canvas->fillTriangle(x - 2, by + BH, x + 2, by + BH, x, by + BH + 4, bubbleColor);
+
+    SpritePalette pal;
+    pal.transparent = 0x0001;  // sentinel — never matches real colors
+    pal.primary     = 0x2104;  // dark grey — main lines
+    pal.secondary   = 0x001F;  // blue — tears / sweat drops
+    pal.dark        = 0x8410;  // mid grey — shadow
+    pal.accent      = 0xFFE0;  // yellow — sparkle / anger marks
+    pal.color5      = 0x0000;
+
+    int sx = bx + (BW - EMOTE_W * EMOTE_SCALE) / 2;
+    int sy = by + (BH - EMOTE_H * EMOTE_SCALE) / 2;
+    _drawSprite(gotchiEmoteSprite(mood), EMOTE_W, EMOTE_H, sx, sy, EMOTE_SCALE, pal);
 }
 
 void GotchiRenderer::_drawStatsBar() {
@@ -283,17 +368,45 @@ void GotchiRenderer::_drawStatsBar() {
     _canvas->setTextColor(TFT_WHITE);
     _canvas->setTextSize(1);
 
+    GotchiType type = _pet->gotchiType();
+    uint16_t typeColor = gotchiTypeColor(type);
+
+    // Left accent: 3px stripe + 8×8 type icon
+    _canvas->fillRect(0, 0, 3, 18, typeColor);
+    SpritePalette iconPal;
+    iconPal.transparent = 0x0001;
+    iconPal.primary     = typeColor;
+    iconPal.secondary   = 0xFFFF;
+    iconPal.dark        = 0x0000;
+    iconPal.accent      = 0xFFFF;
+    iconPal.color5      = 0x0000;
+    _drawSprite(gotchiTypeIcon(type), TYPE_ICON_W, TYPE_ICON_H, 3, 5, 1, iconPal);
+
+    // Bottom accent line
+    _canvas->drawFastHLine(0, 17, 240, typeColor);
+
     PetStats s = _pet->stats();
-    auto col = [](uint8_t v) { return v < 20 ? (uint16_t)TFT_RED : (uint16_t)TFT_WHITE; };
 
-    _canvas->setTextColor(col(s.health));
-    _canvas->drawString("HP:" + String(s.health), 2, 4);
+    auto barColor = [](uint8_t v) -> uint16_t {
+        if (v > 60) return 0x07E0;   // green
+        if (v > 30) return 0xFFE0;   // yellow
+        return 0xF800;               // red
+    };
+    auto drawGauge = [&](int x, int y, const uint8_t* icon, uint8_t val) {
+        uint16_t bc = barColor(val);
+        SpritePalette p;
+        p.transparent = 0x0001; p.primary = bc; p.secondary = 0xFFFF;
+        p.dark = 0x0000; p.accent = 0xFFFF; p.color5 = 0x0000;
+        _drawSprite(icon, HUD_ICON_W, HUD_ICON_H, x, y + 1, 1, p);
+        int bx = x + HUD_ICON_W + 1;
+        _canvas->drawRect(bx, y, 30, 8, 0x4208);
+        int fill = (28 * val) / 100;
+        if (fill > 0) _canvas->fillRect(bx + 1, y + 1, fill, 6, bc);
+    };
 
-    _canvas->setTextColor(col(s.hunger));
-    _canvas->drawString("HG:" + String(s.hunger), 50, 4);
-
-    _canvas->setTextColor(col(s.energy));
-    _canvas->drawString("EN:" + String(s.energy), 98, 4);
+    drawGauge(13, 5, SPR_HUD_HP,     s.health);
+    drawGauge(51, 5, SPR_HUD_HUNGER, s.hunger);
+    drawGauge(89, 5, SPR_HUD_ENERGY, s.energy);
 
     auto dt = M5.Rtc.getDateTime();
     char timeBuf[6];
@@ -301,25 +414,27 @@ void GotchiRenderer::_drawStatsBar() {
     _canvas->setTextColor(TFT_GREEN);
     _canvas->drawString(timeBuf, 148, 4);
 
-    _canvas->setTextColor(0xAAAA);
     const char* stageStr[] = {"EGG","BABY","YNG","ADLT"};
     if (_pet->stage() == LifeStage::ADULT) {
         const char* formStr[] = {"HLT","NRM","NEG"};
-        char info[14];
-        snprintf(info, sizeof(info), "G%d %s/%s",
+        char info[16];
+        snprintf(info, sizeof(info), "%s G%d %s/%s",
+                 gotchiTypeShortName(type),
                  _pet->currentID().generation,
                  stageStr[(uint8_t)_pet->stage()],
                  formStr[(uint8_t)_pet->adultForm()]);
         uint16_t formColor = (_pet->adultForm() == AdultForm::HEALTHY)   ? (uint16_t)0x07E0 :
                              (_pet->adultForm() == AdultForm::NEGLECTED) ? (uint16_t)0xF800 : (uint16_t)0xAAAA;
         _canvas->setTextColor(formColor);
-        _canvas->drawString(info, 175, 4);
+        _canvas->drawString(info, 162, 4);
     } else {
-        char info[10];
-        snprintf(info, sizeof(info), "G%d %s",
+        char info[12];
+        snprintf(info, sizeof(info), "%s G%d %s",
+                 gotchiTypeShortName(type),
                  _pet->currentID().generation,
                  stageStr[(uint8_t)_pet->stage()]);
-        _canvas->drawString(info, 190, 4);
+        _canvas->setTextColor(typeColor);
+        _canvas->drawString(info, 174, 4);
     }
 }
 
@@ -328,20 +443,26 @@ void GotchiRenderer::_drawActionBar(uint8_t selected, bool visible) {
 
     _canvas->fillRect(0, 108, 240, 27, 0x1082);
 
-    const char* labels[] = {"FEED","PLAY","MED","LITE","BATH"};
     for (int i = 0; i < 5; i++) {
         int cx = 24 + i * 48;
         int cy = 121;
         bool active = (i == selected);
 
         uint16_t bg = active ? 0x07E0 : 0x2104;
-        _canvas->fillRoundRect(cx-20, cy-10, 40, 20, 3, bg);
-        if (active) _canvas->drawRoundRect(cx-21, cy-11, 42, 22, 3, TFT_WHITE);
+        _canvas->fillRoundRect(cx - 20, cy - 10, 40, 20, 3, bg);
+        if (active) _canvas->drawRoundRect(cx - 21, cy - 11, 42, 22, 3, TFT_WHITE);
 
-        _canvas->setTextColor(active ? TFT_BLACK : 0x8888);
-        _canvas->setTextSize(1);
-        int tw = strlen(labels[i]) * 6;
-        _canvas->drawString(labels[i], cx - tw/2, cy - 3);
+        SpritePalette pal;
+        pal.transparent = 0x0001;
+        pal.primary     = active ? (uint16_t)0x0000 : (uint16_t)0x8888;
+        pal.secondary   = active ? (uint16_t)0x001F : (uint16_t)0x4444;
+        pal.dark        = active ? (uint16_t)0x2104 : (uint16_t)0x4208;
+        pal.accent      = 0xFFFF;
+        pal.color5      = 0x0000;
+
+        int sx = cx - (ACTION_ICON_W * ACTION_ICON_SCALE) / 2;
+        int sy = cy - (ACTION_ICON_H * ACTION_ICON_SCALE) / 2;
+        _drawSprite(gotchiActionIcon(i), ACTION_ICON_W, ACTION_ICON_H, sx, sy, ACTION_ICON_SCALE, pal);
     }
 }
 
@@ -353,6 +474,30 @@ void GotchiRenderer::_drawSleepZs(int cx, int cy) {
     for (int i = 0; i < 3; i++) {
         _canvas->drawLine(z_x, z_y - (i * 8), z_x + z_size, z_y + z_size - (i * 8), TFT_WHITE);
         _canvas->drawLine(z_x + z_size, z_y - (i * 8), z_x, z_y + z_size - (i * 8), TFT_WHITE);
+    }
+}
+
+void GotchiRenderer::_drawIndicators() {
+    struct Indicator { const uint8_t* data; uint16_t color; bool show; };
+    Indicator inds[] = {
+        { SPR_IND_SICK,   0xF800, _pet->stats().health < 20 },
+        { SPR_IND_HUNGRY, 0xFD20, _pet->stats().hunger < 20 && !_pet->isSleeping() },
+        { SPR_IND_DIRTY,  0xC618, _pet->dirtyness() > 70 },
+    };
+
+    SpritePalette pal;
+    pal.transparent = 0x0001;
+    pal.secondary   = 0xFFFF;
+    pal.dark        = 0x0000;
+    pal.accent      = 0xFFFF;
+    pal.color5      = 0x0000;
+
+    int iy = 22;
+    for (auto& ind : inds) {
+        if (!ind.show) continue;
+        pal.primary = ind.color;
+        _drawSprite(ind.data, IND_ICON_W, IND_ICON_H, 228, iy, 1, pal);
+        iy += 10;
     }
 }
 
@@ -521,8 +666,6 @@ void GotchiRenderer::_drawFrame() {
                     cx - (16 * 2) / 2, cy - (16 * 2) / 2,
                     2, pal);
     } else {
-        _drawBackground();
-
         uint32_t now = millis();
         uint32_t delta = now - _lastFrameMs;
         if (delta < 16) delta = 16;
@@ -536,6 +679,8 @@ void GotchiRenderer::_drawFrame() {
 
         GotchiVisual vis = decodeVisual(_pet->currentID().visual_seed);
         GotchiType type  = _pet->gotchiType();
+
+        _drawHabitat(type);
         SpritePalette pal = _buildPalette(vis, _pet->stage(), type);
 
         // Manage egg animation state
@@ -572,6 +717,10 @@ void GotchiRenderer::_drawFrame() {
 
         if (_pet->isSleeping() && _pet->stage() != LifeStage::EGG) {
             _drawSleepZs((int)_posX + 10, spriteY);
+        }
+
+        if (_pet->stage() != LifeStage::EGG) {
+            _drawIndicators();
         }
 
         _drawStatsBar();

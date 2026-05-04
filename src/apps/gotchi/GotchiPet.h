@@ -20,11 +20,6 @@ enum class Mood : uint8_t {
     SCARED    = 12,
 };
 
-enum class GotchiBranch : uint8_t {
-    BLOB  = 0,
-    PLANT = 1,
-    LIBRE = 2,
-};
 
 enum class AdultForm : uint8_t {
     HEALTHY   = 0,  // avg stats >= 70 — vivid, saturated palette
@@ -77,7 +72,6 @@ public:
     bool      isEggHatched() const { return _eggHatched; }
     void      restartEgg();
     GotchiID  currentID()   const { return _id; }
-    GotchiBranch branch()    const { return _branch; }
     LifeStage    stage()     const { return _stage; }
     GotchiType   gotchiType() const;
     AdultForm    adultForm() const;   // meaningful only at ADULT stage
@@ -115,7 +109,8 @@ private:
     bool            _newEggReady = false;
     bool            _eggHatched  = false;
 
-    GotchiBranch _branch      = GotchiBranch::BLOB;
+    GotchiType   _resolvedType = GotchiType::ORGANIC;
+    bool         _typeLoaded   = false;
     LifeStage    _stage       = LifeStage::EGG;
     uint32_t     _stageAgeMs  = 0;
     uint32_t     _feedCount   = 0;
@@ -135,4 +130,5 @@ private:
     void _updateSleep();
     void _updateHealth(uint32_t deltaMs);
     void _handleDeath();
+    void _selectEvolvedType();
 };

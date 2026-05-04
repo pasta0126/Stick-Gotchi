@@ -9,7 +9,7 @@ enum class StatsTab : uint8_t { STATUS = 0, LINEAGE, HISTORY, COUNT };
 
 struct CachedStats {
     uint8_t  hunger, energy, health;
-    uint8_t  stage, branch;
+    uint8_t  stage, gotchiType;
     uint32_t feedCount, playCount;
     uint8_t  dirtyness;
     bool     lightOn;

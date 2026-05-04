@@ -18,9 +18,9 @@ static constexpr int BAR_X  = 58;                  // stat bar start x
 static constexpr int BAR_W  = 134;                 // stat bar width
 static constexpr int VAL_X  = 197;                 // value text start x
 
-static const char* STAGE_NAMES[]  = { "EGG", "BABY", "YOUNG", "ADULT" };
-static const char* BRANCH_NAMES[] = { "BLOB", "PLANT", "LIBRE" };
-static const char* TAB_LABELS[]   = { "STATS", "LINEAGE", "HISTORY" };
+static const char* STAGE_NAMES[] = { "EGG", "BABY", "YOUNG", "ADULT" };
+static const char* TYPE_NAMES[]  = { "ORGANIC", "CRYSTAL", "ENERGY", "CYBER", "ELEMENTAL", "SOUL" };
+static const char* TAB_LABELS[]  = { "STATS", "LINEAGE", "HISTORY" };
 
 static uint32_t barColor(uint8_t pct) {
     if (pct < 30) return RED_C;
@@ -70,7 +70,7 @@ void StatsApp::_loadFromNvs() {
     _data.energy    = prefs.getUChar("e",  50);
     _data.health    = prefs.getUChar("hp", 100);
     _data.stage     = prefs.getUChar("st", 0);
-    _data.branch    = prefs.getUChar("br", 0);
+    _data.gotchiType = prefs.getUChar("ty", 0);
     _data.feedCount = prefs.getUInt("fc",  0);
     _data.playCount = prefs.getUInt("pc",  0);
     _data.dirtyness  = prefs.getUChar("di", 0);
@@ -145,9 +145,9 @@ void StatsApp::_drawStatus(M5Canvas& c) {
     c.setTextFont(1);
     c.setTextColor(AMBER, BG);
     c.setCursor(4, y);
-    const char* stageName  = (_data.stage  < 4) ? STAGE_NAMES[_data.stage]   : "?";
-    const char* branchName = (_data.branch < 3) ? BRANCH_NAMES[_data.branch] : "?";
-    c.printf("Gen.%d  %s  %s", _data.id.generation, stageName, branchName);
+    const char* stageName = (_data.stage      < 4) ? STAGE_NAMES[_data.stage]        : "?";
+    const char* typeName  = (_data.gotchiType < 6) ? TYPE_NAMES[_data.gotchiType]    : "?";
+    c.printf("Gen.%d  %s  %s", _data.id.generation, stageName, typeName);
 
     y += 12;
     c.drawFastHLine(0, y, W, MUTED);

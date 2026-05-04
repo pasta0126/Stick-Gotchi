@@ -3,14 +3,14 @@
 #include <Preferences.h>
 
 GotchiType GotchiPet::gotchiType() const {
-    GotchiVisual vis = decodeVisual(_id.visual_seed);
-    return gotchiTypeFromSeed(vis.body_shape, vis.mark_type);
+    return _resolvedType;
 }
 
 void GotchiPet::begin() {
     _stats.hunger = 80;
     _stats.energy = 80;
     _stats.health = 100;
+    _typeLoaded = false;
     load();
     _lineage.load(_id, _ancestors, _heritage);
 
@@ -20,6 +20,11 @@ void GotchiPet::begin() {
         _lineage.save(_id, _ancestors, _heritage);
     }
 
+    if (!_typeLoaded) {
+        GotchiVisual vis = decodeVisual(_id.visual_seed);
+        _resolvedType = gotchiTypeFromSeed(vis.body_shape, vis.mark_type);
+    }
+
     _mood        = Mood::HAPPY;
     _moodChanged = true;
 
@@ -27,7 +32,6 @@ void GotchiPet::begin() {
     _stageAgeMs = 0;
     _feedCount = 0;
     _playCount = 0;
-    _branch = GotchiBranch::BLOB;
 }
 
 void GotchiPet::save() {
@@ -37,7 +41,7 @@ void GotchiPet::save() {
     prefs.putUChar("e",  _stats.energy);
     prefs.putUChar("hp", _stats.health);
     prefs.putUChar("st", (uint8_t)_stage);
-    prefs.putUChar("br", (uint8_t)_branch);
+    prefs.putUChar("ty", (uint8_t)_resolvedType);
     prefs.putUInt("sa", _stageAgeMs);
     prefs.putUInt("fc", _feedCount);
     prefs.putUInt("pc", _playCount);
@@ -54,7 +58,10 @@ void GotchiPet::load() {
     _stats.energy = prefs.getUChar("e",  _stats.energy);
     _stats.health = prefs.getUChar("hp", _stats.health);
     _stage = (LifeStage)prefs.getUChar("st", (uint8_t)LifeStage::EGG);
-    _branch = (GotchiBranch)prefs.getUChar("br", (uint8_t)GotchiBranch::BLOB);
+    if (prefs.isKey("ty")) {
+        _resolvedType = (GotchiType)prefs.getUChar("ty", 0);
+        _typeLoaded = true;
+    }
     _stageAgeMs = prefs.getUInt("sa", 0);
     _feedCount  = prefs.getUInt("fc", 0);
     _playCount  = prefs.getUInt("pc", 0);
@@ -85,9 +92,7 @@ void GotchiPet::tick(uint32_t deltaMs) {
     else if (_stage == LifeStage::BABY && _stageAgeMs >= STAGE_BABY_MS) {
         _stage = LifeStage::YOUNG;
         _stageAgeMs = 0;
-        if (_feedCount > _playCount * 2)      _branch = GotchiBranch::PLANT;
-        else if (_playCount > _feedCount * 2) _branch = GotchiBranch::LIBRE;
-        else                                   _branch = GotchiBranch::BLOB;
+        _selectEvolvedType();
         stageChanged = true;
     }
     else if (_stage == LifeStage::YOUNG && _stageAgeMs >= STAGE_YOUNG_MS) {
@@ -321,7 +326,31 @@ void GotchiPet::restartEgg() {
     _stage       = LifeStage::EGG;
     _stageAgeMs  = 0;
     _eggHatched  = false;
+    _feedCount   = 0;
+    _playCount   = 0;
+    GotchiVisual vis = decodeVisual(newSeed);
+    _resolvedType = gotchiTypeFromSeed(vis.body_shape, vis.mark_type);
     save();
+}
+
+void GotchiPet::_selectEvolvedType() {
+    uint32_t total = _feedCount + _playCount;
+    if (total == 0) {
+        GotchiVisual vis = decodeVisual(_id.visual_seed);
+        _resolvedType = gotchiTypeFromSeed(vis.body_shape, vis.mark_type);
+        return;
+    }
+
+    uint8_t feedPct = (uint8_t)((_feedCount * 100) / total);
+    uint8_t carePct = (uint8_t)(((uint16_t)_stats.hunger + _stats.energy + _stats.health) / 3);
+
+    if (feedPct > 66) {
+        _resolvedType = (carePct >= 60) ? GotchiType::ELEMENTAL : GotchiType::CRYSTAL;
+    } else if (feedPct < 34) {
+        _resolvedType = (carePct >= 60) ? GotchiType::ENERGY : GotchiType::SOUL;
+    } else {
+        _resolvedType = (carePct >= 60) ? GotchiType::ORGANIC : GotchiType::CYBER;
+    }
 }
 
 void GotchiPet::_handleDeath() {

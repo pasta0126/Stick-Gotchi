@@ -123,14 +123,12 @@ private:
     uint32_t     _feedCount   = 0;
     uint32_t     _playCount   = 0;
 
-    static constexpr uint32_t DECAY_INTERVAL_MS  = 10000;   // 10s per decay tick
-    static constexpr uint32_t SAVE_INTERVAL_MS   = 300000;  // 5 min
-    static constexpr uint32_t DEATH_DELAY_MS     = 900000;  // 15 min at health=0
-    static constexpr uint32_t STAGE_EGG_MS       = 30000;       // 30s demo
-    static constexpr uint32_t STAGE_BABY_MS      = 259200000;  // 72 h
-    static constexpr uint32_t STAGE_YOUNG_MS     = 604800000;  // 168 h
-    static constexpr uint8_t  DECAY_HUNGER       = 1;
-    static constexpr uint8_t  DECAY_ENERGY       = 1;
+    static constexpr uint32_t DECAY_INTERVAL_MS = 10000;      // 10s per decay tick
+    static constexpr uint32_t SAVE_INTERVAL_MS  = 300000;     // 5 min
+    static constexpr uint32_t DEATH_DELAY_MS    = 900000;     // 15 min at health=0
+    static constexpr uint32_t STAGE_EGG_MS      = 30000;      // 30s demo
+    static constexpr uint32_t STAGE_BABY_MS     = 259200000;  // 72 h
+    static constexpr uint32_t STAGE_YOUNG_MS    = 604800000;  // 168 h
 
     void _recalcMood();
     void _setTempMood(Mood m, uint32_t durationMs);

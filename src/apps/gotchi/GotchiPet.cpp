@@ -2,6 +2,26 @@
 #include <Arduino.h>
 #include <Preferences.h>
 
+// Per-stage decay rates applied every DECAY_INTERVAL_MS (10 s).
+// Indexed by LifeStage (EGG=0, BABY=1, YOUNG=2, ADULT=3).
+namespace {
+struct StageDecay {
+    uint8_t hungerAwake;   // hunger  -X when awake
+    uint8_t hungerSleep;   // hunger  -X while sleeping  (0 = no drain)
+    uint8_t energyDrain;   // energy  -X when awake
+    uint8_t energyGain;    // energy  +X while sleeping
+    uint8_t dirtyAwake;    // dirty   +X when awake
+    uint8_t dirtySleep;    // dirty   +X while sleeping
+};
+constexpr StageDecay DECAY_TABLE[4] = {
+    //  hA  hS  eD  eR  dA  dS
+    {    0,  0,  0,  0,  0,  0 },  // EGG   — no decay, egg just incubates
+    {    2,  0,  2,  5,  2,  1 },  // BABY  — vulnerable; fast drain, fast sleep recovery
+    {    1,  0,  1,  3,  1,  1 },  // YOUNG — baseline rates
+    {    1,  1,  1,  3,  1,  0 },  // ADULT — hunger drains even at night; no dirty during sleep
+};
+}
+
 GotchiType GotchiPet::gotchiType() const {
     return _resolvedType;
 }
@@ -111,13 +131,17 @@ void GotchiPet::tick(uint32_t deltaMs) {
     if (_decayAccum >= DECAY_INTERVAL_MS) {
         _decayAccum -= DECAY_INTERVAL_MS;
 
-        if (!_sleeping) {
-            _stats.hunger = (_stats.hunger > DECAY_HUNGER) ? _stats.hunger - DECAY_HUNGER : 0;
-            _stats.energy = (_stats.energy > DECAY_ENERGY) ? _stats.energy - DECAY_ENERGY : 0;
-        } else {
-            _stats.energy = min(100, (int)_stats.energy + 3);
-        }
-        if (_dirtyness < 100) _dirtyness++;
+        const StageDecay& d = DECAY_TABLE[static_cast<uint8_t>(_stage)];
+        uint8_t hD = _sleeping ? d.hungerSleep : d.hungerAwake;
+        if (hD > 0)
+            _stats.hunger = (_stats.hunger > hD) ? _stats.hunger - hD : 0;
+        if (!_sleeping && d.energyDrain > 0)
+            _stats.energy = (_stats.energy > d.energyDrain) ? _stats.energy - d.energyDrain : 0;
+        if (_sleeping && d.energyGain > 0)
+            _stats.energy = (uint8_t)min(100, (int)_stats.energy + d.energyGain);
+        uint8_t dD = _sleeping ? d.dirtySleep : d.dirtyAwake;
+        if (dD > 0 && _dirtyness < 100)
+            _dirtyness = (uint8_t)min(100, (int)_dirtyness + dD);
         _updateCareHistory();
     }
 

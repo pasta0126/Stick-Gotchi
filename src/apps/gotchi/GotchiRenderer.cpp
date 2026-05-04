@@ -849,7 +849,7 @@ void GotchiRenderer::_drawHatchPrompt() {
     _canvas->fillRect(0, 108, 240, 27, 0x0861);
     _canvas->setTextColor(TFT_WHITE);
     _canvas->setTextSize(1);
-    _canvas->drawCenterString("[ Btn A ]  nuevo huevo", 120, 118);
+    _canvas->drawCenterString("[ Btn A ]  eclosionar", 120, 118);
 }
 
 void GotchiRenderer::_drawSprite(const uint8_t* data, uint8_t w, uint8_t h,

@@ -27,11 +27,24 @@ GotchiType GotchiPet::gotchiType() const {
 }
 
 void GotchiPet::begin() {
-    _stats.hunger = 80;
-    _stats.energy = 80;
-    _stats.health = 100;
-    _typeLoaded = false;
-    load();
+    // Set defaults for first boot (no NVS). load() will override these.
+    _stats.hunger  = 80;
+    _stats.energy  = 80;
+    _stats.health  = 100;
+    _stage         = LifeStage::EGG;
+    _stageAgeMs    = 0;
+    _feedCount     = 0;
+    _playCount     = 0;
+    _dirtyness     = 0;
+    _lightOn       = true;
+    _moodScore     = 65;
+    _avgHealthPct  = 100;
+    _neglectCount  = 0;
+    _sick          = false;
+    _ageMs         = 0;
+    _typeLoaded    = false;
+
+    load();  // overrides defaults with NVS data when available
     _lineage.load(_id, _ancestors, _heritage);
 
     if (_id.generation == 0 && _id.visual_seed == 0) {
@@ -45,17 +58,11 @@ void GotchiPet::begin() {
         _resolvedType = gotchiTypeFromSeed(vis.body_shape, vis.mark_type);
     }
 
-    _sick          = false;
+    // Transient state — always reset on boot regardless of NVS
     _dirtyHighMs   = 0;
     _sickRecoverMs = 0;
-    _ageMs         = 0;
-    _mood        = Mood::HAPPY;
-    _moodChanged = true;
-
-    _stage = LifeStage::EGG;
-    _stageAgeMs = 0;
-    _feedCount = 0;
-    _playCount = 0;
+    _mood          = Mood::HAPPY;
+    _moodChanged   = true;
 }
 
 void GotchiPet::save() {
@@ -434,23 +441,28 @@ void GotchiPet::_setTempMood(Mood m, uint32_t durationMs) {
 }
 
 void GotchiPet::restartEgg() {
-    uint16_t newSeed = (uint16_t)(millis() ^ (millis() >> 5) ^ random(0xFFFF));
-    const uint8_t noParent[3] = {0, 0, 0};
-    _id          = createNewID(0, noParent, newSeed);
-    _stage       = LifeStage::EGG;
-    _stageAgeMs  = 0;
-    _eggHatched  = false;
-    _feedCount   = 0;
-    _playCount   = 0;
-    GotchiVisual vis = decodeVisual(newSeed);
-    _resolvedType  = gotchiTypeFromSeed(vis.body_shape, vis.mark_type);
-    _moodScore     = 65;
-    _avgHealthPct  = 100;
-    _neglectCount  = 0;
-    _sick          = false;
-    _dirtyHighMs   = 0;
+    // Transition EGG → BABY (hatch complete). Identity and lineage are preserved.
+    _stage        = LifeStage::BABY;
+    _stageAgeMs   = 0;
+    _eggHatched   = false;
+    _feedCount    = 0;
+    _playCount    = 0;
+    _ageMs        = 0;
+    _dirtyness    = 0;
+    _sick         = false;
     _sickRecoverMs = 0;
-    _ageMs         = 0;
+    _dirtyHighMs  = 0;
+    _lowHealthMs  = 0;
+    _shakeStress  = 0;
+    _noiseAccum   = 0;
+    _stats.hunger = 80;
+    _stats.energy = 80;
+    _stats.health = (uint8_t)min(100, 100 + (int)_heritage.bonus_health);
+    _moodScore    = (uint8_t)min(100u, 65u + (uint8_t)_heritage.bonus_mood);
+    _avgHealthPct = 100;
+    _neglectCount = 0;
+    _mood         = Mood::HAPPY;
+    _moodChanged  = true;
     save();
 }
 

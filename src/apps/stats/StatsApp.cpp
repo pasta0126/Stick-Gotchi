@@ -73,9 +73,12 @@ void StatsApp::_loadFromNvs() {
     _data.gotchiType = prefs.getUChar("ty", 0);
     _data.feedCount = prefs.getUInt("fc",  0);
     _data.playCount = prefs.getUInt("pc",  0);
-    _data.dirtyness  = prefs.getUChar("di", 0);
-    _data.lightOn    = prefs.getBool("li",  true);
-    _data.stageAgeMs = prefs.getUInt("sa",  0);
+    _data.dirtyness    = prefs.getUChar("di", 0);
+    _data.lightOn      = prefs.getBool("li",  true);
+    _data.stageAgeMs   = prefs.getUInt("sa",  0);
+    _data.moodScore    = prefs.getUChar("ms", 65);
+    _data.avgHealthPct = prefs.getUChar("ah", 100);
+    _data.neglectCount = prefs.getUChar("ne", 0);
     prefs.end();
 
     GotchiLineage lineage;
@@ -376,6 +379,38 @@ void StatsApp::_drawHistory(M5Canvas& c) {
     c.fillRect(16 + feedW, y + 1, 100 - feedW, 8, BLUE_C);
     c.drawRect(15, y,             102,         10, MUTED);
     y += 14;
+
+    // Mood score + avg health bars
+    c.setTextColor(AMBER, BG);
+    c.setCursor(4, y);
+    c.print("Animo:");
+    {
+        int fill = (int)(_data.moodScore * 100 / 100);
+        c.fillRect(48, y + 1, fill, 7, barColor(_data.moodScore));
+        c.drawRect(47, y, 102, 9, MUTED);
+        c.setTextColor(barColor(_data.moodScore), BG);
+        c.setCursor(154, y + 1);
+        c.printf("%3d", _data.moodScore);
+    }
+    y += 11;
+
+    c.setTextColor(AMBER, BG);
+    c.setCursor(4, y);
+    c.print("Salud:");
+    {
+        int fill = _data.avgHealthPct;
+        c.fillRect(48, y + 1, fill, 7, barColor(_data.avgHealthPct));
+        c.drawRect(47, y, 102, 9, MUTED);
+        c.setTextColor(barColor(_data.avgHealthPct), BG);
+        c.setCursor(154, y + 1);
+        c.printf("%3d", _data.avgHealthPct);
+    }
+    y += 11;
+
+    c.setTextColor((_data.neglectCount > 20) ? RED_C : PALE, BG);
+    c.setCursor(4, y);
+    c.printf("Descuidos: %d", _data.neglectCount);
+    y += 12;
 
     c.drawFastHLine(0, y, W, MUTED);
     y += 3;

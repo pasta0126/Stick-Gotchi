@@ -47,6 +47,9 @@ void GotchiPet::save() {
     prefs.putUInt("pc", _playCount);
     prefs.putUChar("di", _dirtyness);
     prefs.putBool("li", _lightOn);
+    prefs.putUChar("ms", _moodScore);
+    prefs.putUChar("ah", _avgHealthPct);
+    prefs.putUChar("ne", _neglectCount);
     prefs.end();
 }
 
@@ -65,8 +68,11 @@ void GotchiPet::load() {
     _stageAgeMs = prefs.getUInt("sa", 0);
     _feedCount  = prefs.getUInt("fc", 0);
     _playCount  = prefs.getUInt("pc", 0);
-    _dirtyness  = prefs.getUChar("di", 0);
-    _lightOn    = prefs.getBool("li", true);
+    _dirtyness     = prefs.getUChar("di", 0);
+    _lightOn       = prefs.getBool("li", true);
+    _moodScore     = prefs.getUChar("ms", 65);
+    _avgHealthPct  = prefs.getUChar("ah", 100);
+    _neglectCount  = prefs.getUChar("ne", 0);
     prefs.end();
 }
 
@@ -112,6 +118,7 @@ void GotchiPet::tick(uint32_t deltaMs) {
             _stats.energy = min(100, (int)_stats.energy + 3);
         }
         if (_dirtyness < 100) _dirtyness++;
+        _updateCareHistory();
     }
 
     _updateHealth(deltaMs);
@@ -329,7 +336,10 @@ void GotchiPet::restartEgg() {
     _feedCount   = 0;
     _playCount   = 0;
     GotchiVisual vis = decodeVisual(newSeed);
-    _resolvedType = gotchiTypeFromSeed(vis.body_shape, vis.mark_type);
+    _resolvedType  = gotchiTypeFromSeed(vis.body_shape, vis.mark_type);
+    _moodScore     = 65;
+    _avgHealthPct  = 100;
+    _neglectCount  = 0;
     save();
 }
 
@@ -353,6 +363,24 @@ void GotchiPet::_selectEvolvedType() {
     }
 }
 
+void GotchiPet::_updateCareHistory() {
+    uint8_t moodPts;
+    switch (_mood) {
+    case Mood::HAPPY:    case Mood::EXCITED: case Mood::LAUGHING: moodPts = 100; break;
+    case Mood::SLEEPING:                                           moodPts = 75;  break;
+    case Mood::NEUTRAL:                                            moodPts = 65;  break;
+    case Mood::PENSIVE:                                            moodPts = 45;  break;
+    case Mood::SAD:      case Mood::ANNOYED:                       moodPts = 30;  break;
+    default:                                                       moodPts = 10;  break;
+    }
+
+    _moodScore    = (uint8_t)((_moodScore    * 15u + moodPts)       / 16u);
+    _avgHealthPct = (uint8_t)((_avgHealthPct * 15u + _stats.health) / 16u);
+
+    bool critical = (_stats.hunger < 20 || _stats.energy < 10 || _stats.health < 20);
+    if (critical && _neglectCount < 255) _neglectCount++;
+}
+
 void GotchiPet::_handleDeath() {
     _dead = true;
 
@@ -360,8 +388,8 @@ void GotchiPet::_handleDeath() {
     dying.id = _id;
     dying.days_lived = (uint16_t)(millis() / 86400000UL);
     dying.cause_of_death = (_stats.hunger < 10) ? 0 : 1;
-    dying.avg_mood_pct = 50;
-    dying.avg_health_pct = _stats.health;
+    dying.avg_mood_pct   = _moodScore;
+    dying.avg_health_pct = _avgHealthPct;
 
     GotchiHeritage newHeritage = GotchiLineage::computeHeritage(dying, _ancestors);
     _lineage.shiftAncestors(_ancestors, dying);

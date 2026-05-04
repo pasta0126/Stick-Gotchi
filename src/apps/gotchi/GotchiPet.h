@@ -63,10 +63,13 @@ public:
     PetStats  stats()       const { return _stats; }
     bool      moodChanged() const { return _moodChanged; }
     void      clearMoodChanged()  { _moodChanged = false; }
-    bool      isTempMood()  const { return _tempMood != Mood::NEUTRAL; }
-    bool      isSleeping()  const { return _sleeping; }
-    bool      isLightOn()   const { return _lightOn; }
-    uint8_t   dirtyness()   const { return _dirtyness; }
+    bool      isTempMood()   const { return _tempMood != Mood::NEUTRAL; }
+    bool      isSleeping()   const { return _sleeping; }
+    bool      isLightOn()    const { return _lightOn; }
+    uint8_t   dirtyness()    const { return _dirtyness; }
+    uint8_t   moodScore()    const { return _moodScore; }
+    uint8_t   avgHealthPct() const { return _avgHealthPct; }
+    uint8_t   neglectCount() const { return _neglectCount; }
     bool      isDead()      const { return _dead; }
     bool      isNewEgg()    const { return _newEggReady; }
     bool      isEggHatched() const { return _eggHatched; }
@@ -93,6 +96,10 @@ private:
     bool     _lightOn     = true;
     uint8_t  _dirtyness   = 0;
     uint32_t _lowHealthMs = 0;   // time spent at health=0 (death timer)
+
+    uint8_t  _moodScore    = 65;   // EWMA of mood quality, 0-100
+    uint8_t  _avgHealthPct = 100;  // EWMA of health, 0-100
+    uint8_t  _neglectCount = 0;    // decay ticks where any stat was critically low
 
     uint8_t  _hour        = 12;
 
@@ -131,4 +138,5 @@ private:
     void _updateHealth(uint32_t deltaMs);
     void _handleDeath();
     void _selectEvolvedType();
+    void _updateCareHistory();
 };

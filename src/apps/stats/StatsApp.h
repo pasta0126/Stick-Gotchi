@@ -13,6 +13,7 @@ struct CachedStats {
     uint32_t feedCount, playCount;
     uint8_t  dirtyness;
     bool     lightOn;
+    uint8_t  moodScore, avgHealthPct, neglectCount;
     uint32_t stageAgeMs;
     GotchiID       id;
     GotchiAncestor ancestors[5];

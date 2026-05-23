@@ -47,6 +47,7 @@ void GotchiPet::onNoiseLevel(float rms) {
 void GotchiPet::setCreature(CreatureType type) {
     _creatureType = type;
     _behaviour.setCreature(type, CreatureRegistry::instance());
+    save();
 }
 
 void GotchiPet::save() {

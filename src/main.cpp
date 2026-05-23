@@ -8,6 +8,7 @@
 #include "ble/BleService.h"
 #include "apps/gotchi/GotchiApp.h"
 #include "apps/gotchi/MiniGames.h"
+#include "gotchi/GotchiBehaviour.h"
 #include "apps/imudemo/ImuDemoApp.h"
 #include "apps/stats/StatsApp.h"
 
@@ -73,12 +74,25 @@ void setup() {
           menuIcon8Ball, {} },
     };
 
+    std::vector<MenuItem> creatureChildren = {
+        { "Bytee",   MenuItemType::ACTION, nullptr,
+          []() { gotchiApp.selectCreature(CreatureType::BYTEE);   }, menuIconGotchi, {} },
+        { "Cthulhu", MenuItemType::ACTION, nullptr,
+          []() { gotchiApp.selectCreature(CreatureType::CTHULHU); }, menuIconGotchi, {} },
+        { "Jack",    MenuItemType::ACTION, nullptr,
+          []() { gotchiApp.selectCreature(CreatureType::JACK);    }, menuIconGotchi, {} },
+        { "Lumi",    MenuItemType::ACTION, nullptr,
+          []() { gotchiApp.selectCreature(CreatureType::LUMI);    }, menuIconGotchi, {} },
+    };
+
     menu.addItem({ "Stick Gotchi", MenuItemType::APP,
                    []() -> AppBase* { return &gotchiApp; },
                    nullptr, menuIconGotchi, {} });
     menu.addItem({ "Stats",        MenuItemType::APP,
                    []() -> AppBase* { return &statsApp; },
                    nullptr, menuIconStats, {} });
+    menu.addItem({ "Criatura",     MenuItemType::SUBMENU,
+                   nullptr, nullptr, menuIconGotchi, creatureChildren });
     menu.addItem({ "Jugar",        MenuItemType::SUBMENU,
                    nullptr, nullptr, menuIconCoin, gameChildren });
     menu.addItem({ "IMU Sensors",  MenuItemType::SUBMENU,

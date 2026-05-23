@@ -19,6 +19,7 @@ public:
 
     void injectRenderer(DisplayManager* display) { _renderer.inject(display); }
     void startMiniGame(MiniGameId id);
+    void selectCreature(CreatureType type) { _pet.setCreature(type); }
 
 private:
     GotchiPet      _pet;

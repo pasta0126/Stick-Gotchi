@@ -81,11 +81,15 @@ bool GotchiApp::onInput(const InputEvent& e) {
     }
 
     if (e.button == ButtonId::B && e.action == ButtonAction::LONG_PRESS) {
-        if (_menuCallback) _menuCallback();
+        _renderer.showMoodPeek();
         return true;
     }
     if (e.button == ButtonId::B && e.action == ButtonAction::SHORT_PRESS) {
         _pet.onBtnB();
+        return true;
+    }
+    if (e.button == ButtonId::A && e.action == ButtonAction::LONG_PRESS) {
+        if (_menuCallback) _menuCallback();
         return true;
     }
     if (e.button == ButtonId::A && e.action == ButtonAction::SHORT_PRESS) {

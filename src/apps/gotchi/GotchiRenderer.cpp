@@ -674,7 +674,7 @@ void GotchiRenderer::_drawFrame() {
         GotchiVisual vis = decodeVisual(_pet->currentID().visual_seed);
         GotchiType type  = _pet->gotchiType();
 
-        _drawHabitat(type);
+        _drawCreatureAtmosphere(delta);
         SpritePalette pal = _buildPalette(vis, _pet->stage(), type);
 
         // Manage egg animation state
@@ -713,19 +713,13 @@ void GotchiRenderer::_drawFrame() {
             _drawSleepZs((int)_posX + 10, spriteY);
         }
 
-        if (_pet->stage() != LifeStage::EGG) {
-            _drawIndicators();
-        }
-
         if (_pet->isAgony()) {
             _drawAgonyOverlay();
         }
 
-        _drawStatsBar();
-        if (_pet->stage() == LifeStage::EGG && _hatchDone) {
-            _drawHatchPrompt();
-        } else {
-            _drawActionBar(_selectedAction, _actionBarVisible);
+        if (_moodPeekMs > 0) {
+            _drawMoodPeek();
+            _moodPeekMs = (_moodPeekMs > delta) ? _moodPeekMs - delta : 0;
         }
     }
 
@@ -850,6 +844,159 @@ void GotchiRenderer::_drawHatchPrompt() {
     _canvas->setTextColor(TFT_WHITE);
     _canvas->setTextSize(1);
     _canvas->drawCenterString("[ Btn A ]  eclosionar", 120, 118);
+}
+
+void GotchiRenderer::_drawCreatureAtmosphere(uint32_t /*deltaMs*/) {
+    CreatureType ct = _pet->creature();
+    uint32_t t = millis();
+
+    switch (ct) {
+
+    case CreatureType::BYTEE: {
+        // Deep space purple — #1a0a2e → RGB565 0x1845
+        _canvas->fillScreen(0x1845);
+        // Fixed star field with per-star twinkle
+        static const int16_t STARS[][2] = {
+            {12,8},{40,22},{68,14},{95,35},{130,8},{160,28},{190,12},{220,40},
+            {30,50},{80,65},{140,45},{200,60},{55,78},{110,90},{170,72},
+            {15,100},{90,110},{210,95}
+        };
+        for (int i = 0; i < 18; i++) {
+            uint32_t period = 500 + (uint32_t)i * 137;
+            bool lit = ((t % period) < (period * 2 / 3));
+            if (lit) {
+                uint16_t col = (i % 5 == 0) ? (uint16_t)0xFEC0 : (uint16_t)0xCE59;
+                _canvas->drawPixel(STARS[i][0], STARS[i][1], col);
+            }
+        }
+        // 3 slow gold sparkles drifting upward
+        for (int i = 0; i < 3; i++) {
+            int gy = 130 - (int)((t / 100 + i * 430) % 135);
+            int gx = 20 + i * 90 + (int)(sinf(t * 0.001f + i * 2.1f) * 18);
+            bool vis2 = ((t / 300 + i * 7) % 5) < 3;
+            if (vis2) _canvas->fillRect(gx, gy, 2, 2, 0xFEC0);
+        }
+        break;
+    }
+
+    case CreatureType::CTHULHU: {
+        // Deep ocean green — #0a1a0f → RGB565 0x08C1
+        _canvas->fillScreen(0x08C1);
+        // Slow mist bands
+        for (int i = 0; i < 3; i++) {
+            int my = 25 + i * 38 + (int)(sinf(t * 0.0003f + i * 1.5f) * 9);
+            _canvas->fillRect(0, my, 240, 3, 0x0182);
+        }
+        // 3 bubbles rising at staggered rates
+        for (int i = 0; i < 3; i++) {
+            uint32_t phase = (t / 70 + (uint32_t)i * 450) % 140;
+            int bx = 35 + i * 80 + (int)(sinf(t * 0.0008f + i) * 14);
+            int by = 134 - (int)phase;
+            _canvas->drawCircle(bx, by, 2, 0x07C6);
+            _canvas->drawPixel(bx - 1, by - 2, 0x0564);
+        }
+        break;
+    }
+
+    case CreatureType::JACK: {
+        // Stone grey — #1a1a1a → RGB565 0x18C3
+        _canvas->fillScreen(0x18C3);
+        // Very rare raindrop: one drop every ~4 seconds
+        uint32_t cycle = t / 80;
+        if (cycle % 50 < 4) {
+            uint32_t seed = cycle / 50;
+            int rx = (int)((seed * 73u + 17u) % 200) + 20;
+            int ry = (int)((cycle % 50) * 3);
+            _canvas->drawFastVLine(rx, ry, 5, 0x39C7);
+        }
+        break;
+    }
+
+    case CreatureType::LUMI: {
+        // Twilight lavender gradient top→bottom
+        for (int y = 0; y < 135; y += 4) {
+            uint8_t r = 0x1a + (uint8_t)(y * 16 / 135);
+            uint8_t g = 0x0a;
+            uint8_t b = 0x2e + (uint8_t)(y * 16 / 135);
+            uint16_t col = (uint16_t)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
+            _canvas->fillRect(0, y, 240, 4, col);
+        }
+        // Star twinkles
+        static const int16_t LSTARS[][2] = {
+            {15,10},{50,8},{90,20},{130,5},{175,15},{210,8},
+            {35,35},{75,28},{120,38},{180,30},{220,45},
+            {10,55},{60,50},{100,62},{155,48}
+        };
+        for (int i = 0; i < 15; i++) {
+            uint32_t period = 700 + (uint32_t)i * 210;
+            bool lit = ((t % period) < (period / 3));
+            if (lit) {
+                uint16_t col = (i % 3 == 0) ? (uint16_t)0xFFFF :
+                               (i % 3 == 1) ? (uint16_t)0xE71C : (uint16_t)0xDEFB;
+                _canvas->drawPixel(LSTARS[i][0], LSTARS[i][1], col);
+                if (i % 5 == 0) {
+                    _canvas->drawPixel(LSTARS[i][0] + 1, LSTARS[i][1], col);
+                    _canvas->drawPixel(LSTARS[i][0], LSTARS[i][1] + 1, col);
+                }
+            }
+        }
+        // 2 flower petals drifting down
+        for (int i = 0; i < 2; i++) {
+            uint32_t phase = (t / 60 + (uint32_t)i * 1100) % 200;
+            if (phase < 135) {
+                int px = 40 + i * 130 + (int)(sinf(t * 0.0009f + i * 2.0f) * 18);
+                int py = (int)phase;
+                _canvas->fillRect(px, py, 3, 2, 0xF81F);
+            }
+        }
+        break;
+    }
+
+    default:
+        _drawBackground();
+        break;
+    }
+}
+
+void GotchiRenderer::_drawMoodPeek() {
+    static const char* MOOD_NAMES[] = {
+        "Neutral",    "Contento",  "Mal",      "Pensativo",
+        "Triste",     "Dormido",   "Emocionado","Risas",
+        "Mareado",    "Molesto",   "Enfadado",  "Sobresaltado", "Asustado"
+    };
+
+    _canvas->fillRect(0, 100, 240, 35, 0x0000);
+    _canvas->drawFastHLine(0, 100, 240, 0x4208);
+
+    CreatureType ct = _pet->creature();
+    const char* ctName = (ct == CreatureType::BYTEE)   ? "Bytee"   :
+                         (ct == CreatureType::CTHULHU) ? "Cthulhu" :
+                         (ct == CreatureType::JACK)    ? "Jack"    : "Lumi";
+
+    uint8_t moodIdx = (uint8_t)_pet->mood();
+    const char* moodName = (moodIdx < 13) ? MOOD_NAMES[moodIdx] : "...";
+
+    _canvas->setTextFont(1);
+    _canvas->setTextColor(0x8410, 0x0000);
+    _canvas->setCursor(6, 104);
+    _canvas->print(ctName);
+
+    _canvas->setTextColor(0xFFFF, 0x0000);
+    _canvas->setTextSize(2);
+    _canvas->setCursor(6, 115);
+    _canvas->print(moodName);
+    _canvas->setTextSize(1);
+
+    // Emote sprite on the right
+    SpritePalette pal;
+    pal.transparent = 0x0001;
+    pal.primary   = 0x2104;
+    pal.secondary = 0x001F;
+    pal.dark      = 0x8410;
+    pal.accent    = 0xFFE0;
+    pal.color5    = 0x0000;
+    _drawSprite(gotchiEmoteSprite(_pet->mood()), EMOTE_W, EMOTE_H,
+                200, 106, EMOTE_SCALE, pal);
 }
 
 void GotchiRenderer::_drawSprite(const uint8_t* data, uint8_t w, uint8_t h,

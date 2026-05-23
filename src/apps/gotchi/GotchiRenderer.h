@@ -34,6 +34,7 @@ public:
     void setGaze(float h, float v = 0.0f);
     void setActionBarState(uint8_t selected, bool visible);
     void setMiniGame(uint8_t id, uint8_t state, uint8_t frame, uint8_t extra);
+    void showMoodPeek() { _moodPeekMs = 3000; }
 
 private:
     GotchiPet*      _pet      = nullptr;
@@ -54,8 +55,8 @@ private:
 
     static constexpr int PLAY_X0 = 4;
     static constexpr int PLAY_X1 = 236;
-    static constexpr int PLAY_Y0 = 22;
-    static constexpr int PLAY_Y1 = 100;
+    static constexpr int PLAY_Y0 = 8;
+    static constexpr int PLAY_Y1 = 127;
 
     uint8_t      _selectedAction = 0;
     bool         _actionBarVisible = true;
@@ -68,6 +69,7 @@ private:
     uint32_t    _lastFrameMs  = 0;
     uint8_t     _animFrame    = 0;
     uint32_t    _animAccumMs  = 0;
+    uint32_t    _moodPeekMs   = 0;
     static constexpr uint32_t FRAME_INTERVAL_MS = 500;
 
     TaskHandle_t _taskHandle = nullptr;
@@ -76,6 +78,8 @@ private:
     void _drawFrame();
     void _drawBackground();
     void _drawHabitat(GotchiType type);
+    void _drawCreatureAtmosphere(uint32_t deltaMs);
+    void _drawMoodPeek();
     void _drawEmote(Mood mood, int x, int y);
     void _updatePosition(uint32_t deltaMs);
     void _drawStatsBar();

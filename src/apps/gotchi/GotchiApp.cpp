@@ -98,6 +98,7 @@ bool GotchiApp::onInput(const InputEvent& e) {
     }
     if (e.button == ButtonId::A && e.action == ButtonAction::SHORT_PRESS) {
         _pet.onBtnA();
+        _renderer.setZImpulse(1.3f, 0.007f, 1000);
         return true;
     }
     return false;
@@ -138,6 +139,7 @@ void GotchiApp::_pollImu(uint32_t deltaMs) {
     // ── TAP: single sharp spike (not already in a shake sequence) ─────
     if (delta > TAP_DELTA && _shakeCount <= 1) {
         _pet.onImuTap();
+        _renderer.setZImpulse(1.4f, 0.008f, 600);
         _shakeCount = 0;
         goto gaze;  // skip shake/motion logic this sample
     }
@@ -148,6 +150,7 @@ void GotchiApp::_pollImu(uint32_t deltaMs) {
         _shakeCount++;
         if (_shakeCount >= 3 && (now - _shakeWindowMs) < 600) {
             _pet.onImuShake();
+            _renderer.setZImpulse(0.35f, 0.012f, 2500);
             _shakeCount = 0;
         }
     } else if ((now - _shakeWindowMs) > 800) {
@@ -168,6 +171,7 @@ void GotchiApp::_pollImu(uint32_t deltaMs) {
             // Transition ACTIVE→STILL: putdown
             if (!_wasNearGravity && prevActive >= PUTDOWN_ACTIVE && _putdownCooldown == 0) {
                 _pet.onImuPutdown();
+                _renderer.setZImpulse(0.8f, 0.002f, 3000);
                 _putdownCooldown = 3000;
             }
         } else {
@@ -176,6 +180,7 @@ void GotchiApp::_pollImu(uint32_t deltaMs) {
             // Transition STILL→ACTIVE: pickup (only if was still long enough)
             if (_wasNearGravity && prevStill >= PICKUP_STILL && _pickupCooldown == 0) {
                 _pet.onImuPickup();
+                _renderer.setZImpulse(1.6f, 0.015f, 1500);
                 _pickupCooldown = 5000;
             }
         }
@@ -190,6 +195,7 @@ void GotchiApp::_pollImu(uint32_t deltaMs) {
         }
         if (_walkMs >= WALK_CONFIRM && _walkingCooldown == 0) {
             _pet.onImuWalking();
+            _renderer.setZImpulse(1.2f, 0.003f, 2000);
             _walkingCooldown = 2000;
         }
     }

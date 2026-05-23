@@ -37,6 +37,7 @@ public:
     void showMoodPeek() { _moodPeekMs = 3000; _moodPeekInMs = 0; }
     void beginTransition(uint16_t color = 0xFFFF);
     void triggerWake();
+    void setZImpulse(float targetZ, float speed, uint32_t durationMs);
 
     void showSpeech(const char* text, uint16_t durationMs = 3000);
     void triggerReaction();
@@ -88,6 +89,13 @@ private:
 
     uint32_t    _wakeMs = 0;
     static constexpr uint32_t WAKE_MS = 1400;
+
+    // Event-driven Z impulse (overrides mood-based target while active)
+    float       _zImpulseTarget = -1.0f;
+    float       _zImpulseSpeed  = 0.003f;
+    uint32_t    _zImpulseMs     = 0;
+    // Lumi continuous oscillation phase
+    float       _zOscPhase      = 0.0f;
 
     static constexpr uint32_t FRAME_INTERVAL_MS = 500;
 

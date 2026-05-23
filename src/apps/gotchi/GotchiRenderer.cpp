@@ -1016,6 +1016,22 @@ void GotchiRenderer::_updateZ(uint32_t deltaMs) {
         // Second half: normal mood logic settles Z back to default
     }
 
+    // Event-driven impulse (highest priority — overrides mood + wake)
+    if (_zImpulseMs > 0) {
+        _zImpulseMs = (_zImpulseMs > deltaMs) ? _zImpulseMs - deltaMs : 0;
+        _zTarget = max(zMin, min(zMax, _zImpulseTarget));
+        zSpeed   = _zImpulseSpeed;
+    }
+
+    // Lumi: continuous subtle oscillation (bigger when excited/happy)
+    if (ct == CreatureType::LUMI) {
+        _zOscPhase += 0.0025f * (float)deltaMs;
+        Mood m = _pet->mood();
+        float amp = (m == Mood::EXCITED || m == Mood::HAPPY || m == Mood::LAUGHING) ? 0.18f : 0.08f;
+        float osc = _zTarget + amp * sinf(_zOscPhase);
+        _zTarget = max(zMin, min(zMax, osc));
+    }
+
     // Smooth lerp toward target
     float diff = _zTarget - _zDepth;
     float step = zSpeed * (float)deltaMs;
@@ -1030,6 +1046,12 @@ void GotchiRenderer::beginTransition(uint16_t color) {
 
 void GotchiRenderer::triggerWake() {
     _wakeMs = WAKE_MS;
+}
+
+void GotchiRenderer::setZImpulse(float targetZ, float speed, uint32_t durationMs) {
+    _zImpulseTarget = targetZ;
+    _zImpulseSpeed  = speed;
+    _zImpulseMs     = durationMs;
 }
 
 void GotchiRenderer::_applyTransitionOverlay(uint32_t deltaMs) {
@@ -1115,6 +1137,15 @@ void GotchiRenderer::triggerAttention() {
     const char* phrase = bank[millis() % n];
     bool willMarquee = ((int)strlen(phrase) * 6 > 88);
     showSpeech(phrase, willMarquee ? 7000 : 4000);
+
+    // Per-creature Z behavior when seeking attention
+    switch (_pet->creature()) {
+    case CreatureType::CTHULHU: setZImpulse(2.0f, 0.0008f, 9000); break; // slow creep to PEEK
+    case CreatureType::LUMI:    setZImpulse(1.6f, 0.010f,  5000); break; // rush close
+    case CreatureType::BYTEE:   setZImpulse(1.3f, 0.004f,  4000); break; // gentle approach
+    case CreatureType::JACK:    break;                                     // Jack does not move
+    default: break;
+    }
 }
 
 void GotchiRenderer::_drawSpeechBubble(uint32_t deltaMs) {

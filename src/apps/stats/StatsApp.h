@@ -3,19 +3,16 @@
 #include "../../core/DisplayManager.h"
 #include "../../gotchi/GotchiDNA.h"
 #include "../../gotchi/GotchiLineage.h"
+#include "../../gotchi/GotchiBehaviour.h"
 #include <M5Unified.h>
 
-enum class StatsTab : uint8_t { STATUS = 0, LINEAGE, HISTORY, COUNT };
+enum class StatsTab : uint8_t { DIARY = 0, LINEAGE, COUNT };
 
-struct CachedStats {
-    uint8_t  hunger, energy, health;
-    uint8_t  stage, gotchiType;
-    uint32_t feedCount, playCount;
-    uint8_t  dirtyness;
-    bool     lightOn;
-    uint8_t  moodScore, avgHealthPct, neglectCount;
-    uint32_t stageAgeMs;
-    GotchiID       id;
+struct DiaryData {
+    CreatureType creatureType   = CreatureType::BYTEE;
+    uint32_t     totalCompanionMs = 0;
+    uint32_t     interactionsToday = 0;
+    GotchiID     id;
     GotchiAncestor ancestors[5];
     GotchiHeritage heritage;
 };
@@ -34,18 +31,14 @@ public:
 
 private:
     DisplayManager* _display   = nullptr;
-    StatsTab        _tab       = StatsTab::STATUS;
+    StatsTab        _tab       = StatsTab::DIARY;
     bool            _needsDraw = true;
-    CachedStats     _data{};
+    DiaryData       _data{};
 
     void _loadFromNvs();
     void _drawFrame();
     void _drawTabBar(M5Canvas& c);
-    void _drawStatus(M5Canvas& c);
+    void _drawDiary(M5Canvas& c);
     void _drawLineage(M5Canvas& c);
-    void _drawHistory(M5Canvas& c);
-    void _drawStatBar(M5Canvas& c, int y, const char* label,
-                      uint8_t pct, uint32_t fillColor);
-    void _drawDnaVial(M5Canvas& c, int x, int y,
-                      uint16_t col1, uint16_t col2);
+    void _drawDnaVial(M5Canvas& c, int x, int y, uint16_t col1, uint16_t col2);
 };

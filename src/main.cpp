@@ -8,6 +8,7 @@
 #include "ble/BleService.h"
 #include "apps/gotchi/GotchiApp.h"
 #include "apps/gotchi/MiniGames.h"
+#include "apps/gotchi/CreatureSelectorApp.h"
 #include "gotchi/GotchiBehaviour.h"
 #include "apps/imudemo/ImuDemoApp.h"
 #include "apps/stats/StatsApp.h"
@@ -20,9 +21,10 @@ static MenuOverlay    menu;
 static BleService     ble;
 
 // ── App instances ─────────────────────────────────────────────────────────────
-static GotchiApp  gotchiApp;
-static ImuDemoApp imuDemoApp; // mode is set by menu before launch
-static StatsApp   statsApp;
+static GotchiApp          gotchiApp;
+static ImuDemoApp         imuDemoApp;
+static StatsApp           statsApp;
+static CreatureSelectorApp selectorApp;
 
 // Icon functions are defined in menu/GotchiMenuIcons.h
 
@@ -43,10 +45,20 @@ void setup() {
     imuDemoApp.inject(&display);
     gotchiApp.injectRenderer(&display);
     statsApp.inject(&display);
+    selectorApp.inject(&display);
     statsApp.setMenuCallback([]() { menu.open(); });
 
     gotchiApp.setMenuCallback([]()  { menu.open(); });
     imuDemoApp.setMenuCallback([]() { menu.open(); });
+    selectorApp.setMenuCallback([]() { menu.open(); });
+
+    selectorApp.setConfirmCallback([](CreatureType t) {
+        static constexpr uint32_t COLS[] = {0xFFC000, 0x00CC88, 0x888888, 0xFF40FF};
+        gotchiApp.selectCreature(t);
+        uint8_t ci = (uint8_t)t;
+        if (ci < 4) menu.setAccentColor(COLS[ci]);
+        apps.launchApp(&gotchiApp);
+    });
 
     menu.begin(buttons, display, apps);
 
@@ -74,16 +86,6 @@ void setup() {
           menuIcon8Ball, {} },
     };
 
-    std::vector<MenuItem> creatureChildren = {
-        { "Bytee",   MenuItemType::ACTION, nullptr,
-          []() { gotchiApp.selectCreature(CreatureType::BYTEE);   menu.setAccentColor(0xFFC000); }, menuIconGotchi, {} },
-        { "Cthulhu", MenuItemType::ACTION, nullptr,
-          []() { gotchiApp.selectCreature(CreatureType::CTHULHU); menu.setAccentColor(0x00CC88); }, menuIconGotchi, {} },
-        { "Jack",    MenuItemType::ACTION, nullptr,
-          []() { gotchiApp.selectCreature(CreatureType::JACK);    menu.setAccentColor(0x888888); }, menuIconGotchi, {} },
-        { "Lumi",    MenuItemType::ACTION, nullptr,
-          []() { gotchiApp.selectCreature(CreatureType::LUMI);    menu.setAccentColor(0xFF40FF); }, menuIconGotchi, {} },
-    };
 
     menu.addItem({ "Stick Gotchi", MenuItemType::APP,
                    []() -> AppBase* { return &gotchiApp; },
@@ -91,8 +93,11 @@ void setup() {
     menu.addItem({ "Stats",        MenuItemType::APP,
                    []() -> AppBase* { return &statsApp; },
                    nullptr, menuIconStats, {} });
-    menu.addItem({ "Criatura",     MenuItemType::SUBMENU,
-                   nullptr, nullptr, menuIconGotchi, creatureChildren });
+    menu.addItem({ "Criatura",     MenuItemType::APP,
+                   []() -> AppBase* {
+                       selectorApp.openAt(gotchiApp.loadedCreature());
+                       return &selectorApp;
+                   }, nullptr, menuIconGotchi, {} });
     menu.addItem({ "Jugar",        MenuItemType::SUBMENU,
                    nullptr, nullptr, menuIconCoin, gameChildren });
     menu.addItem({ "IMU Sensors",  MenuItemType::SUBMENU,
@@ -105,14 +110,9 @@ void setup() {
 
     // Sync menu accent color with whichever creature was loaded from NVS
     {
-        static constexpr uint32_t CREATURE_COLORS[] = {
-            0xFFC000,  // Bytee   — gold
-            0x00CC88,  // Cthulhu — teal
-            0x888888,  // Jack    — grey
-            0xFF40FF,  // Lumi    — pink
-        };
+        static constexpr uint32_t COLS[] = {0xFFC000, 0x00CC88, 0x888888, 0xFF40FF};
         uint8_t ct = (uint8_t)gotchiApp.loadedCreature();
-        if (ct < 4) menu.setAccentColor(CREATURE_COLORS[ct]);
+        if (ct < 4) menu.setAccentColor(COLS[ct]);
     }
 
     Serial.println("[main] Boot complete");

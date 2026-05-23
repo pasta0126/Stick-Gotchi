@@ -46,6 +46,9 @@ private:
     float       _gazeH    = 0.0f;
     float       _gazeV    = 0.0f;
 
+    float       _zDepth   = 1.0f;   // current Z (smooth)
+    float       _zTarget  = 1.0f;   // target Z set each frame from mood
+
     float       _posX = 120.0f;
     float       _posY = 62.0f;
     float       _velX = 0.5f;
@@ -80,6 +83,7 @@ private:
     void _drawHabitat(GotchiType type);
     void _drawCreatureAtmosphere(uint32_t deltaMs);
     void _drawMoodPeek();
+    void _updateZ(uint32_t deltaMs);
     void _drawEmote(Mood mood, int x, int y);
     void _updatePosition(uint32_t deltaMs);
     void _drawStatsBar();

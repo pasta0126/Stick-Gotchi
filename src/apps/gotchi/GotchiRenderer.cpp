@@ -699,9 +699,15 @@ void GotchiRenderer::_drawFrame() {
         uint8_t frameIdx = (_animTag == AnimTag::HATCH) ? _hatchFrame : _animFrame;
         SpriteFrame frame = _selectSprite(_pet->stage(), type, frameIdx);
 
+        // Z-depth: scale sprite based on _zDepth (0=FAR, 1=NORMAL, 2=PEEK)
+        _updateZ(delta);
+        float screenH = 27.0f + (_zDepth / 2.0f) * 108.0f;
+        frame.scale = (uint8_t)max(1, (int)roundf(screenH / (float)frame.h));
+
+        // X: use wandering position; Y: centered vertically (Z controls apparent size)
         int spriteX = (int)_posX - (frame.w * frame.scale) / 2;
-        int spriteY = (int)_posY - (frame.h * frame.scale) / 2;
-        spriteY = max(PLAY_Y0, min(PLAY_Y1 - frame.h * frame.scale, spriteY));
+        spriteX = max(PLAY_X0, min(PLAY_X1 - frame.w * frame.scale, spriteX));
+        int spriteY = 67 - (frame.h * frame.scale) / 2;  // centered; overflows at PEEK
 
         _drawSprite(frame.data, frame.w, frame.h, spriteX, spriteY, frame.scale, pal);
 
@@ -956,6 +962,44 @@ void GotchiRenderer::_drawCreatureAtmosphere(uint32_t /*deltaMs*/) {
         _drawBackground();
         break;
     }
+}
+
+void GotchiRenderer::_updateZ(uint32_t deltaMs) {
+    // Per-creature Z personality
+    CreatureType ct = _pet->creature();
+    float zDefault = 1.0f, zMin = 0.4f, zMax = 1.7f, zSpeed = 0.003f;
+    switch (ct) {
+    case CreatureType::BYTEE:   zDefault=1.0f; zMin=0.4f; zMax=1.7f; zSpeed=0.003f; break;
+    case CreatureType::CTHULHU: zDefault=0.9f; zMin=0.2f; zMax=2.0f; zSpeed=0.002f; break;
+    case CreatureType::JACK:    zDefault=1.0f; zMin=0.8f; zMax=1.1f; zSpeed=0.0005f; break;
+    case CreatureType::LUMI:    zDefault=1.1f; zMin=0.5f; zMax=1.8f; zSpeed=0.008f; break;
+    default: break;
+    }
+
+    // Mood → Z target
+    float z = zDefault;
+    switch (_pet->mood()) {
+    case Mood::SLEEPING:  z = zMin; break;
+    case Mood::SCARED:    z = max(zMin, 0.3f); break;
+    case Mood::STARTLED:  z = max(zMin, 0.3f); break;
+    case Mood::SAD:       z = max(zMin, 0.5f); break;
+    case Mood::PENSIVE:   z = max(zMin, 0.7f); break;
+    case Mood::ANNOYED:   z = max(zMin, zDefault - 0.2f); break;
+    case Mood::HAPPY:     z = min(zMax, zDefault + 0.2f); break;
+    case Mood::LAUGHING:  z = min(zMax, 1.3f); break;
+    case Mood::ANGRY:     z = min(zMax, 1.4f); break;
+    case Mood::EXCITED:   z = min(zMax, 1.5f); break;
+    default:              z = zDefault; break;
+    }
+    if (z < zMin) z = zMin;
+    if (z > zMax) z = zMax;
+    _zTarget = z;
+
+    // Smooth lerp toward target
+    float diff = _zTarget - _zDepth;
+    float step = zSpeed * (float)deltaMs;
+    if (fabsf(diff) <= step) _zDepth = _zTarget;
+    else                      _zDepth += (diff > 0.0f) ? step : -step;
 }
 
 void GotchiRenderer::_drawMoodPeek() {

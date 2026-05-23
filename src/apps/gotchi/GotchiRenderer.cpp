@@ -24,6 +24,7 @@ void GotchiRenderer::start(GotchiPet* pet) {
         &_taskHandle,
         0
     );
+    triggerWake();
 }
 
 void GotchiRenderer::suspend() {
@@ -727,9 +728,15 @@ void GotchiRenderer::_drawFrame() {
         }
 
         if (_moodPeekMs > 0) {
+            _moodPeekInMs += delta;
             _drawMoodPeek();
             _moodPeekMs = (_moodPeekMs > delta) ? _moodPeekMs - delta : 0;
+            if (_moodPeekMs == 0) _moodPeekInMs = 0;
+        } else {
+            _moodPeekInMs = 0;
         }
+
+        _applyTransitionOverlay(delta);
     }
 
     _canvas->pushSprite(0, 0);
@@ -998,11 +1005,68 @@ void GotchiRenderer::_updateZ(uint32_t deltaMs) {
     if (z > zMax) z = zMax;
     _zTarget = z;
 
+    // Wake animation: Z pulse toward CLOSE on startup / waking from sleep
+    if (_wakeMs > 0) {
+        _wakeMs = (_wakeMs > deltaMs) ? _wakeMs - deltaMs : 0;
+        float progress = (float)_wakeMs / WAKE_MS;  // 1.0→0.0
+        if (progress > 0.5f) {
+            float t = (progress - 0.5f) * 2.0f;  // 1.0→0.0
+            _zTarget = zDefault + (zMax - zDefault) * (1.0f - t);
+        }
+        // Second half: normal mood logic settles Z back to default
+    }
+
     // Smooth lerp toward target
     float diff = _zTarget - _zDepth;
     float step = zSpeed * (float)deltaMs;
     if (fabsf(diff) <= step) _zDepth = _zTarget;
     else                      _zDepth += (diff > 0.0f) ? step : -step;
+}
+
+void GotchiRenderer::beginTransition(uint16_t color) {
+    _transitionColor = color;
+    _transitionMs    = TRANSITION_MS;
+}
+
+void GotchiRenderer::triggerWake() {
+    _wakeMs = WAKE_MS;
+}
+
+void GotchiRenderer::_applyTransitionOverlay(uint32_t deltaMs) {
+    if (_transitionMs == 0) return;
+
+    uint32_t elapsed  = TRANSITION_MS - _transitionMs;
+    uint32_t halfSolid = (TRANSITION_MS - TRANSITION_SOLID_MS) / 2;  // ramp width
+
+    uint8_t level;  // 0=none 1=25% 2=75% 3=solid
+    if (elapsed < halfSolid) {
+        if      (elapsed < halfSolid / 3)     level = 1;
+        else if (elapsed < halfSolid * 2 / 3) level = 2;
+        else                                   level = 3;
+    } else if (_transitionMs > halfSolid) {
+        level = 3;
+    } else {
+        if      (_transitionMs > halfSolid * 2 / 3) level = 3;
+        else if (_transitionMs > halfSolid / 3)      level = 2;
+        else                                         level = 1;
+    }
+
+    switch (level) {
+    case 1:
+        for (int y = 0; y < 135; y += 4)
+            _canvas->drawFastHLine(0, y, 240, _transitionColor);
+        break;
+    case 2:
+        for (int y = 0; y < 135; y += 2)
+            _canvas->drawFastHLine(0, y, 240, _transitionColor);
+        break;
+    case 3:
+        _canvas->fillScreen(_transitionColor);
+        break;
+    default: break;
+    }
+
+    _transitionMs = (_transitionMs > deltaMs) ? _transitionMs - deltaMs : 0;
 }
 
 // ── Speech bubble phrase banks ────────────────────────────────────────────────
@@ -1180,8 +1244,20 @@ void GotchiRenderer::_drawMoodPeek() {
         "Mareado",    "Molesto",   "Enfadado",  "Sobresaltado", "Asustado"
     };
 
-    _canvas->fillRect(0, 100, 240, 35, 0x0000);
-    _canvas->drawFastHLine(0, 100, 240, 0x4208);
+    // Slide-in/out animation
+    static constexpr int     PANEL_H   = 35;
+    static constexpr int     PANEL_Y0  = 100;
+    static constexpr uint32_t SLIDE_MS = 150;
+    int slideY = 0;
+    if (_moodPeekInMs < SLIDE_MS) {
+        slideY = (int)(PANEL_H * (1.0f - (float)_moodPeekInMs / SLIDE_MS));
+    } else if (_moodPeekMs < SLIDE_MS) {
+        slideY = (int)(PANEL_H * (1.0f - (float)_moodPeekMs / SLIDE_MS));
+    }
+    int py = PANEL_Y0 + slideY;
+
+    _canvas->fillRect(0, py, 240, PANEL_H, 0x0000);
+    _canvas->drawFastHLine(0, py, 240, 0x4208);
 
     CreatureType ct = _pet->creature();
     const char* ctName = (ct == CreatureType::BYTEE)   ? "Bytee"   :
@@ -1193,12 +1269,12 @@ void GotchiRenderer::_drawMoodPeek() {
 
     _canvas->setTextFont(1);
     _canvas->setTextColor(0x8410, 0x0000);
-    _canvas->setCursor(6, 104);
+    _canvas->setCursor(6, py + 4);
     _canvas->print(ctName);
 
     _canvas->setTextColor(0xFFFF, 0x0000);
     _canvas->setTextSize(2);
-    _canvas->setCursor(6, 115);
+    _canvas->setCursor(6, py + 15);
     _canvas->print(moodName);
     _canvas->setTextSize(1);
 
@@ -1211,7 +1287,7 @@ void GotchiRenderer::_drawMoodPeek() {
     pal.accent    = 0xFFE0;
     pal.color5    = 0x0000;
     _drawSprite(gotchiEmoteSprite(_pet->mood()), EMOTE_W, EMOTE_H,
-                200, 106, EMOTE_SCALE, pal);
+                200, py + 6, EMOTE_SCALE, pal);
 }
 
 void GotchiRenderer::_drawSprite(const uint8_t* data, uint8_t w, uint8_t h,

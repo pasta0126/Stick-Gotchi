@@ -53,10 +53,12 @@ void setup() {
     selectorApp.setMenuCallback([]() { menu.open(); });
 
     selectorApp.setConfirmCallback([](CreatureType t) {
-        static constexpr uint32_t COLS[] = {0xFFC000, 0x00CC88, 0x888888, 0xFF40FF};
+        static constexpr uint32_t COLS[]   = {0xFFC000, 0x00CC88, 0x888888, 0xFF40FF};
+        static constexpr uint16_t COLS565[] = {0xFDA0,   0x0728,   0x8410,   0xF81F};
         gotchiApp.selectCreature(t);
         uint8_t ci = (uint8_t)t;
         if (ci < 4) menu.setAccentColor(COLS[ci]);
+        gotchiApp.pendCreatureTransition(ci < 4 ? COLS565[ci] : 0xFFFF);
         apps.launchApp(&gotchiApp);
     });
 

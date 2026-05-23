@@ -20,6 +20,7 @@ public:
     void injectRenderer(DisplayManager* display) { _renderer.inject(display); }
     void startMiniGame(MiniGameId id);
     void selectCreature(CreatureType type) { _pet.setCreature(type); }
+    void pendCreatureTransition(uint16_t color) { _pendingTransitionColor = color; }
     CreatureType loadedCreature() const { return _pet.creature(); }
 
 private:
@@ -27,7 +28,8 @@ private:
     GotchiRenderer _renderer;
     FlipCoinGame   _flipCoin;
     Magic8BallGame _magic8Ball;
-    MiniGameId     _activeMiniGame = MiniGameId::NONE;
+    MiniGameId     _activeMiniGame          = MiniGameId::NONE;
+    uint16_t       _pendingTransitionColor   = 0;
 
     // IMU polling + motion state
     uint32_t _imuPollAccum   = 0;

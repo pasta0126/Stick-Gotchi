@@ -5,6 +5,10 @@
 void GotchiApp::init() {
     _pet.begin();
     _renderer.start(&_pet);
+    if (_pendingTransitionColor) {
+        _renderer.beginTransition(_pendingTransitionColor);
+        _pendingTransitionColor = 0;
+    }
     M5.Mic.begin();
 }
 

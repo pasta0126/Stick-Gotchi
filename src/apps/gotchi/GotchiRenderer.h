@@ -34,7 +34,9 @@ public:
     void setGaze(float h, float v = 0.0f);
     void setActionBarState(uint8_t selected, bool visible);
     void setMiniGame(uint8_t id, uint8_t state, uint8_t frame, uint8_t extra);
-    void showMoodPeek() { _moodPeekMs = 3000; }
+    void showMoodPeek() { _moodPeekMs = 3000; _moodPeekInMs = 0; }
+    void beginTransition(uint16_t color = 0xFFFF);
+    void triggerWake();
 
     void showSpeech(const char* text, uint16_t durationMs = 3000);
     void triggerReaction();
@@ -77,6 +79,16 @@ private:
     uint8_t     _animFrame    = 0;
     uint32_t    _animAccumMs  = 0;
     uint32_t    _moodPeekMs   = 0;
+    uint32_t    _moodPeekInMs = 0;   // elapsed ms since peek triggered (for slide anim)
+
+    uint32_t    _transitionMs    = 0;
+    uint16_t    _transitionColor = 0xFFFF;
+    static constexpr uint32_t TRANSITION_MS  = 320;
+    static constexpr uint32_t TRANSITION_SOLID_MS = 120; // centre solid phase width
+
+    uint32_t    _wakeMs = 0;
+    static constexpr uint32_t WAKE_MS = 1400;
+
     static constexpr uint32_t FRAME_INTERVAL_MS = 500;
 
     TaskHandle_t _taskHandle = nullptr;
@@ -100,6 +112,7 @@ private:
     void _drawFlipCoin();
     void _drawMagic8Ball();
     void _drawSpeechBubble(uint32_t deltaMs);
+    void _applyTransitionOverlay(uint32_t deltaMs);
     SpriteFrame _selectSprite(LifeStage stage, GotchiType type, uint8_t frame);
 
     // Speech bubble state

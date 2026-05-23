@@ -710,10 +710,13 @@ void GotchiRenderer::_drawFrame() {
         int spriteY = 67 - (frame.h * frame.scale) / 2;  // centered; overflows at PEEK
 
         _drawSprite(frame.data, frame.w, frame.h, spriteX, spriteY, frame.scale, pal);
+        _lastSpriteTopY = spriteY;
 
         if (_pet->mood() != Mood::NEUTRAL && _pet->stage() != LifeStage::EGG) {
             _drawEmote(_pet->mood(), (int)_posX, spriteY - 2);
         }
+
+        _drawSpeechBubble(delta);
 
         if (_pet->isSleeping() && _pet->stage() != LifeStage::EGG) {
             _drawSleepZs((int)_posX + 10, spriteY);
@@ -1000,6 +1003,174 @@ void GotchiRenderer::_updateZ(uint32_t deltaMs) {
     float step = zSpeed * (float)deltaMs;
     if (fabsf(diff) <= step) _zDepth = _zTarget;
     else                      _zDepth += (diff > 0.0f) ? step : -step;
+}
+
+// ── Speech bubble phrase banks ────────────────────────────────────────────────
+static const char* const BYTEE_REACT[]   = { "!", "Oh!", "Interesting...", "Calculating...", "..." };
+static const char* const BYTEE_ATTN[]    = { "Hey, are you there?", "I found something!", "Look at this!" };
+static const char* const CTHULHU_REACT[] = { "eep!", "the sounds...", "*tentacle noises*", "hugs?" };
+static const char* const CTHULHU_ATTN[]  = { "free hugs available", "...I see you", "ancient loneliness" };
+static const char* const JACK_REACT[]    = { ".", "hmm" };
+static const char* const JACK_ATTN[]     = { "..." };
+static const char* const LUMI_REACT[]    = { "!!!", "oh oh oh!", "notice me!", "*sparkles*" };
+static const char* const LUMI_ATTN[]     = { "HELLO??", "pay attention to meeee", "I'm right here!!!" };
+
+void GotchiRenderer::showSpeech(const char* text, uint16_t durationMs) {
+    strncpy(_speechText, text, sizeof(_speechText) - 1);
+    _speechText[sizeof(_speechText) - 1] = '\0';
+    int len = strlen(_speechText);
+    _isMarquee   = (len * 6 > 88);
+    _marqueeOff  = 0.0f;
+    _speechRemMs = durationMs;
+    _attentionIdleMs = 0;
+}
+
+void GotchiRenderer::triggerReaction() {
+    if (!_pet) return;
+    const char* const* bank;
+    uint8_t n;
+    switch (_pet->creature()) {
+    case CreatureType::CTHULHU: bank = CTHULHU_REACT; n = 4; break;
+    case CreatureType::JACK:    bank = JACK_REACT;    n = 2; break;
+    case CreatureType::LUMI:    bank = LUMI_REACT;    n = 4; break;
+    default:                    bank = BYTEE_REACT;   n = 5; break;
+    }
+    showSpeech(bank[millis() % n], 2500);
+}
+
+void GotchiRenderer::triggerAttention() {
+    if (!_pet) return;
+    const char* const* bank;
+    uint8_t n;
+    switch (_pet->creature()) {
+    case CreatureType::CTHULHU: bank = CTHULHU_ATTN; n = 3; break;
+    case CreatureType::JACK:    bank = JACK_ATTN;    n = 1; break;
+    case CreatureType::LUMI:    bank = LUMI_ATTN;    n = 3; break;
+    default:                    bank = BYTEE_ATTN;   n = 3; break;
+    }
+    const char* phrase = bank[millis() % n];
+    bool willMarquee = ((int)strlen(phrase) * 6 > 88);
+    showSpeech(phrase, willMarquee ? 7000 : 4000);
+}
+
+void GotchiRenderer::_drawSpeechBubble(uint32_t deltaMs) {
+    if (!_pet || _pet->stage() == LifeStage::EGG) return;
+
+    // Auto-attention idle accumulator
+    if (_speechRemMs == 0 && !_pet->isSleeping()) {
+        _attentionIdleMs += deltaMs;
+        uint32_t thresh;
+        switch (_pet->creature()) {
+        case CreatureType::JACK:    thresh = 720000; break;
+        case CreatureType::CTHULHU: thresh =  60000; break;
+        case CreatureType::LUMI:    thresh =  15000; break;
+        default:                    thresh =  30000; break;
+        }
+        if (_attentionIdleMs >= thresh) triggerAttention();
+    }
+
+    if (_speechRemMs == 0) return;
+    _speechRemMs = (_speechRemMs > deltaMs) ? _speechRemMs - deltaMs : 0;
+
+    // Bubble geometry
+    int textLen  = strlen(_speechText);
+    int textPixW = textLen * 6;
+    int bw = _isMarquee ? 96 : max(textPixW + 10, 28);
+    int bh = 16;
+    int botY = max(bh + 8, min(_lastSpriteTopY - 2, 110));
+    int topY = botY - bh;
+    int bx   = max(2, min((int)_posX - bw / 2, 238 - bw));
+
+    // Per-creature colors
+    CreatureType ct = _pet->creature();
+    uint16_t fillC, bordC, textC;
+    switch (ct) {
+    case CreatureType::CTHULHU: fillC=0x0841; bordC=0x07E0; textC=0xB7F5; break;
+    case CreatureType::JACK:    fillC=0x2104; bordC=0x7BEF; textC=0xC618; break;
+    case CreatureType::LUMI:    fillC=0x100C; bordC=0xF81F; textC=0xFFFF; break;
+    default: /* Bytee */        fillC=0x0808; bordC=0xFFE0; textC=0xFFFF; break;
+    }
+
+    // Draw bubble background + border (per creature style)
+    switch (ct) {
+    case CreatureType::JACK:
+        _canvas->fillRect(bx, topY, bw, bh, fillC);
+        _canvas->drawRect(bx, topY, bw, bh, bordC);
+        break;
+    case CreatureType::LUMI: {
+        _canvas->fillRoundRect(bx, topY, bw, bh, 4, fillC);
+        _canvas->drawRoundRect(bx, topY, bw, bh, 4, bordC);
+        uint8_t t = (uint8_t)(millis() / 250);
+        _canvas->drawPixel(bx + bw - 5, topY + 2, (t % 2) ? bordC : 0xFFFF);
+        _canvas->drawPixel(bx + bw - 3, topY + 4, (t % 2) ? 0xFFFF : bordC);
+        break;
+    }
+    case CreatureType::CTHULHU: {
+        _canvas->fillRoundRect(bx, topY, bw, bh, 3, fillC);
+        _canvas->drawRoundRect(bx, topY, bw, bh, 3, bordC);
+        uint8_t t = (uint8_t)(millis() / 400);
+        _canvas->drawPixel(bx - 1, topY + 4 + (t % 4), bordC);
+        _canvas->drawPixel(bx + bw, topY + 6 + (t % 3), bordC);
+        break;
+    }
+    default: // Bytee: rect + gold corner dots
+        _canvas->fillRect(bx, topY, bw, bh, fillC);
+        _canvas->drawRect(bx, topY, bw, bh, bordC);
+        _canvas->drawPixel(bx - 1,  topY - 1,  bordC);
+        _canvas->drawPixel(bx + bw, topY - 1,  bordC);
+        _canvas->drawPixel(bx - 1,  topY + bh, bordC);
+        _canvas->drawPixel(bx + bw, topY + bh, bordC);
+        break;
+    }
+
+    // Tail pointing from bubble bottom toward creature center
+    int tailX = max(bx + 4, min((int)_posX - 2, bx + bw - 8));
+    switch (ct) {
+    case CreatureType::JACK:
+        _canvas->drawFastVLine(tailX, botY, 5, bordC);
+        _canvas->drawFastHLine(tailX, botY + 5, 4, bordC);
+        break;
+    case CreatureType::LUMI:
+        _canvas->drawFastVLine(tailX + 1, botY, 4, bordC);
+        _canvas->drawPixel(tailX + 2, botY + 3, bordC);
+        break;
+    case CreatureType::CTHULHU:
+        _canvas->drawPixel(tailX,     botY,     bordC);
+        _canvas->drawPixel(tailX + 1, botY + 1, bordC);
+        _canvas->drawPixel(tailX,     botY + 2, bordC);
+        _canvas->drawPixel(tailX + 1, botY + 3, bordC);
+        break;
+    default: // Bytee: crystal diamond point
+        _canvas->drawPixel(tailX + 1, botY,     bordC);
+        _canvas->drawPixel(tailX,     botY + 1, bordC);
+        _canvas->drawPixel(tailX + 2, botY + 1, bordC);
+        _canvas->drawPixel(tailX + 1, botY + 2, bordC);
+        break;
+    }
+
+    // Text
+    _canvas->setTextFont(1);
+    _canvas->setTextSize(1);
+    _canvas->setTextColor(textC, fillC);
+    int textAreaX = bx + 4;
+    int textAreaW = bw - 8;
+    int textY     = topY + (bh - 8) / 2;
+
+    if (!_isMarquee) {
+        _canvas->setCursor(textAreaX, textY);
+        _canvas->print(_speechText);
+    } else {
+        _marqueeOff -= 0.04f * (float)deltaMs;
+        if (_marqueeOff < -(float)textPixW) _marqueeOff = (float)textAreaW;
+        int curX = textAreaX + (int)_marqueeOff;
+        for (const char* p = _speechText; *p; ++p) {
+            if (curX >= textAreaX && curX + 6 <= textAreaX + textAreaW) {
+                _canvas->setCursor(curX, textY);
+                _canvas->write(*p);
+            }
+            curX += 6;
+        }
+    }
 }
 
 void GotchiRenderer::_drawMoodPeek() {

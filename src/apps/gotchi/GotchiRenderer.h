@@ -36,6 +36,10 @@ public:
     void setMiniGame(uint8_t id, uint8_t state, uint8_t frame, uint8_t extra);
     void showMoodPeek() { _moodPeekMs = 3000; }
 
+    void showSpeech(const char* text, uint16_t durationMs = 3000);
+    void triggerReaction();
+    void triggerAttention();
+
 private:
     GotchiPet*      _pet      = nullptr;
     DisplayManager* _display  = nullptr;
@@ -95,7 +99,16 @@ private:
     void _drawAgonyOverlay();
     void _drawFlipCoin();
     void _drawMagic8Ball();
+    void _drawSpeechBubble(uint32_t deltaMs);
     SpriteFrame _selectSprite(LifeStage stage, GotchiType type, uint8_t frame);
+
+    // Speech bubble state
+    char     _speechText[56]  = {};
+    uint32_t _speechRemMs     = 0;
+    float    _marqueeOff      = 0.0f;
+    bool     _isMarquee       = false;
+    uint32_t _attentionIdleMs = 0;
+    int      _lastSpriteTopY  = 60;
 
     enum class AnimTag : uint8_t { IDLE, EAT, PLAY, SLEEP, DIE, HATCH };
     AnimTag  _animTag      = AnimTag::IDLE;

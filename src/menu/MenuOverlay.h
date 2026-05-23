@@ -10,6 +10,7 @@ public:
     void begin(ButtonManager& buttons, DisplayManager& display, AppManager& apps);
 
     void addItem(MenuItem item); // adds to root level
+    void setAccentColor(uint32_t col) { _accentColor = col; _dirty = true; }
 
     void open();
     void close();
@@ -32,8 +33,9 @@ private:
     std::vector<Level> _stack;
     std::vector<MenuItem> _rootItems; // source for stack[0] on open()
 
-    bool _open  = false;
-    bool _dirty = true;
+    bool     _open        = false;
+    bool     _dirty       = true;
+    uint32_t _accentColor = 0x40FF20;
 
     ButtonManager*  _buttons = nullptr;
     DisplayManager* _display = nullptr;

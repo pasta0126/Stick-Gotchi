@@ -20,6 +20,7 @@ public:
     void injectRenderer(DisplayManager* display) { _renderer.inject(display); }
     void startMiniGame(MiniGameId id);
     void selectCreature(CreatureType type) { _pet.setCreature(type); }
+    CreatureType loadedCreature() const { return _pet.creature(); }
 
 private:
     GotchiPet      _pet;

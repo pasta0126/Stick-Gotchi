@@ -76,13 +76,13 @@ void setup() {
 
     std::vector<MenuItem> creatureChildren = {
         { "Bytee",   MenuItemType::ACTION, nullptr,
-          []() { gotchiApp.selectCreature(CreatureType::BYTEE);   }, menuIconGotchi, {} },
+          []() { gotchiApp.selectCreature(CreatureType::BYTEE);   menu.setAccentColor(0xFFC000); }, menuIconGotchi, {} },
         { "Cthulhu", MenuItemType::ACTION, nullptr,
-          []() { gotchiApp.selectCreature(CreatureType::CTHULHU); }, menuIconGotchi, {} },
+          []() { gotchiApp.selectCreature(CreatureType::CTHULHU); menu.setAccentColor(0x00CC88); }, menuIconGotchi, {} },
         { "Jack",    MenuItemType::ACTION, nullptr,
-          []() { gotchiApp.selectCreature(CreatureType::JACK);    }, menuIconGotchi, {} },
+          []() { gotchiApp.selectCreature(CreatureType::JACK);    menu.setAccentColor(0x888888); }, menuIconGotchi, {} },
         { "Lumi",    MenuItemType::ACTION, nullptr,
-          []() { gotchiApp.selectCreature(CreatureType::LUMI);    }, menuIconGotchi, {} },
+          []() { gotchiApp.selectCreature(CreatureType::LUMI);    menu.setAccentColor(0xFF40FF); }, menuIconGotchi, {} },
     };
 
     menu.addItem({ "Stick Gotchi", MenuItemType::APP,
@@ -102,6 +102,18 @@ void setup() {
 
     apps.begin(buttons);
     apps.launchApp(&gotchiApp);
+
+    // Sync menu accent color with whichever creature was loaded from NVS
+    {
+        static constexpr uint32_t CREATURE_COLORS[] = {
+            0xFFC000,  // Bytee   — gold
+            0x00CC88,  // Cthulhu — teal
+            0x888888,  // Jack    — grey
+            0xFF40FF,  // Lumi    — pink
+        };
+        uint8_t ct = (uint8_t)gotchiApp.loadedCreature();
+        if (ct < 4) menu.setAccentColor(CREATURE_COLORS[ct]);
+    }
 
     Serial.println("[main] Boot complete");
 }

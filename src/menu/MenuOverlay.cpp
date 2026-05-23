@@ -82,28 +82,12 @@ void MenuOverlay::_render() {
 
     // ── Header ────────────────────────────────────────────────────────────────
     c.fillRect(0, 0, W, HEADER_H, SP_MOSS);
-
-    // Breadcrumb: show depth indicator
     c.setTextFont(2);
-    c.setTextColor(SP_GREEN, SP_MOSS);
+    c.setTextColor(_accentColor, SP_MOSS);
     c.setCursor(8, 2);
-    if (_stack.size() > 1) {
-        c.print("< BACK");
-    } else {
-        c.print("MENU");
-    }
-
-    // Counter
-    if (!_stack.empty()) {
-        char ctr[10];
-        snprintf(ctr, sizeof(ctr), "%d/%d",
-                 _cur().selectedIdx + 1, (int)_cur().items.size());
-        c.setTextFont(1);
-        c.setTextColor(SP_DIM, SP_MOSS);
-        int tw = c.textWidth(ctr);
-        c.setCursor(W - tw - 8, 6);
-        c.print(ctr);
-    }
+    c.print(_stack.size() > 1 ? "< BACK" : "MENU");
+    // Accent underline
+    c.drawFastHLine(0, HEADER_H - 1, W, _accentColor);
 
     if (_stack.empty() || _cur().items.empty()) {
         _display->push();
@@ -111,73 +95,52 @@ void MenuOverlay::_render() {
         return;
     }
 
-    // ── Content ───────────────────────────────────────────────────────────────
-    const MenuItem& item = _cur().items[_cur().selectedIdx];
+    // ── 2-column icon grid ────────────────────────────────────────────────────
+    int n     = (int)_cur().items.size();
+    int rows  = (n + 1) / 2;
+    int cellW = W / 2;
+    int gridH = H - HEADER_H;
+    int cellH = gridH / rows;
+    if (cellH > 57) cellH = 57;
 
-    // Vertical separator
-    c.drawFastVLine(88, HEADER_H + 4, H - HEADER_H - 8, SP_RULE);
+    int sel = _cur().selectedIdx;
 
-    // Icon — centered in left column
-    int iconCx = 44;
-    int iconCy = HEADER_H + (H - HEADER_H) / 2;
-    int iconSz = 50;
-
-    if (item.iconFn) {
-        item.iconFn(c, iconCx, iconCy, iconSz, SP_GREEN);
-    } else {
-        // Default: hexagon
-        for (int i = 0; i < 6; i++) {
-            float a0 = i * 3.14159f / 3.0f - 3.14159f / 6.0f;
-            float a1 = (i+1) * 3.14159f / 3.0f - 3.14159f / 6.0f;
-            c.drawLine(iconCx + (int)(cosf(a0)*iconSz/2),
-                       iconCy + (int)(sinf(a0)*iconSz/2),
-                       iconCx + (int)(cosf(a1)*iconSz/2),
-                       iconCy + (int)(sinf(a1)*iconSz/2), SP_GREEN);
-        }
-    }
-
-    // Title — choose largest font that fits
-    int textX = 96;
-    c.setTextFont(4);
-    int titleW = c.textWidth(item.label);
-    if (titleW > W - textX - 4) {
-        c.setTextFont(2);
-    }
-    c.setTextColor(SP_WHITE, SP_BG);
-    c.setCursor(textX, HEADER_H + 14);
-    c.print(item.label);
-
-    // Rule
-    c.drawFastHLine(textX, HEADER_H + (c.fontHeight() == 26 ? 44 : 32), W - textX - 4, SP_RULE);
-
-    // Type badge
-    c.setTextFont(1);
-    c.setTextColor(SP_DIM, SP_BG);
-    c.setCursor(textX, HEADER_H + 38);
-    switch (item.type) {
-    case MenuItemType::APP:     c.print("application"); break;
-    case MenuItemType::ACTION:  c.print("action");      break;
-    case MenuItemType::SUBMENU: c.print("submenu \x10"); break;
-    }
-
-    // Select / enter hint
-    c.setTextColor(SP_AMBER, SP_BG);
-    c.setCursor(textX, HEADER_H + 58);
-    c.print("A hold  select");
-
-    // Dot navigation indicators (bottom-center, no bar)
-    int n = (int)_cur().items.size();
-    int dotStep = 10;
-    int dotsW   = (n - 1) * dotStep;
-    int dotX    = (W - dotsW) / 2;
-    int dotY    = H - 8;
     for (int i = 0; i < n; i++) {
-        int dx = dotX + i * dotStep;
-        if (i == _cur().selectedIdx) {
-            c.fillCircle(dx, dotY, 4, SP_GREEN);
-        } else {
-            c.fillCircle(dx, dotY, 2, SP_DIM);
+        int row = i / 2;
+        int col = i % 2;
+        int x0  = col * cellW;
+        int y0  = HEADER_H + row * cellH;
+        int cx  = x0 + cellW / 2;
+        bool active = (i == sel);
+
+        // Cell background
+        if (active) {
+            c.fillRect(x0 + 2, y0 + 2, cellW - 4, cellH - 4, SP_MOSS);
+            c.drawRect(x0 + 1, y0 + 1, cellW - 2, cellH - 2, _accentColor);
         }
+
+        // Icon — centered in upper portion of cell
+        const auto& item = _cur().items[i];
+        int iconSz  = cellH - 18;
+        int iconCy  = y0 + (cellH - 14) / 2;
+        uint32_t icol = active ? _accentColor : SP_DIM;
+        if (item.iconFn) {
+            item.iconFn(c, cx, iconCy, iconSz, icol);
+        } else {
+            c.drawCircle(cx, iconCy, iconSz / 3, icol);
+        }
+
+        // Label
+        c.setTextFont(1);
+        c.setTextColor(active ? _accentColor : SP_DIM,
+                       active ? SP_MOSS      : SP_BG);
+        c.drawCenterString(item.label, cx, y0 + cellH - 11);
+    }
+
+    // Grid dividers
+    c.drawFastVLine(W / 2, HEADER_H, H - HEADER_H, SP_RULE);
+    for (int r = 1; r < rows; r++) {
+        c.drawFastHLine(0, HEADER_H + r * cellH, W, SP_RULE);
     }
 
     _display->push();

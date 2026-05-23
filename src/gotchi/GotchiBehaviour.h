@@ -51,7 +51,7 @@ struct Reaction {
     GotchiMood    moodTarget;
     uint8_t       animationId;  // NO_ANIM = skip
     CreatureState nextState;
-    uint16_t      cooldownMs;
+    uint32_t      cooldownMs;
 };
 
 // ── Behaviour engine ───────────────────────────────────────────────────────────
@@ -70,6 +70,7 @@ public:
     GotchiMood    mood()      const { return _mood; }
     uint8_t       animId()    const { return _currentAnim; }
     bool          animDirty()       { bool d = _animChanged; _animChanged = false; return d; }
+    bool          moodDirty()       { bool d = _moodChanged; _moodChanged = false; return d; }
 
 private:
     void _applyReaction(const Reaction& r);
@@ -81,6 +82,7 @@ private:
     GotchiMood    _mood        = GotchiMood::NEUTRAL;
     uint8_t       _currentAnim = 0;
     bool          _animChanged = false;
+    bool          _moodChanged = false;
 
     uint32_t _idleMs      = 0;
     uint32_t _attentionMs = 0;
@@ -88,5 +90,5 @@ private:
     uint32_t _cooldowns[(uint8_t)BehaviourEvent::_COUNT] = {};
 
     const CreatureRegistry* _registry = nullptr;
-    CreatureType             _type    = CreatureType::FANTASY;
+    CreatureType             _type    = CreatureType::BYTEE;
 };

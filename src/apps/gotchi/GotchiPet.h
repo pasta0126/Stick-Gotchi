@@ -29,8 +29,14 @@ public:
     void tick(uint32_t deltaMs);
 
     // ── Sensor inputs ─────────────────────────────────────────────────
-    void onShake(uint8_t intensity);   // 0=walking 1=tap 2=shake 3=violent
     void onNoiseLevel(float rms);      // raw RMS from mic buffer
+
+    // IMU events — called directly from GotchiApp motion detector
+    void onImuTap()     { _behaviour.pushEvent(BehaviourEvent::IMU_TAP);     }
+    void onImuShake()   { _behaviour.pushEvent(BehaviourEvent::IMU_SHAKE);   }
+    void onImuPickup()  { _behaviour.pushEvent(BehaviourEvent::IMU_PICKUP);  }
+    void onImuPutdown() { _behaviour.pushEvent(BehaviourEvent::IMU_PUTDOWN); }
+    void onImuWalking() { _behaviour.pushEvent(BehaviourEvent::IMU_WALKING); }
 
     // ── Button events ─────────────────────────────────────────────────
     void onBtnA() { _behaviour.pushEvent(BehaviourEvent::BTN_A); }

@@ -33,14 +33,6 @@ void GotchiPet::tick(uint32_t deltaMs) {
     }
 }
 
-void GotchiPet::onShake(uint8_t intensity) {
-    switch (intensity) {
-    case 0: _behaviour.pushEvent(BehaviourEvent::IMU_WALKING); break;
-    case 1: _behaviour.pushEvent(BehaviourEvent::IMU_TAP);     break;
-    default:_behaviour.pushEvent(BehaviourEvent::IMU_SHAKE);   break;
-    }
-}
-
 void GotchiPet::onNoiseLevel(float rms) {
     if (rms >= MIC_LOUD_RMS && _micLoudCooldown == 0) {
         _behaviour.pushEvent(BehaviourEvent::MIC_NOISE_LOUD);

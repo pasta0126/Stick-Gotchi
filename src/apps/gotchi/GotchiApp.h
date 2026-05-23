@@ -27,11 +27,18 @@ private:
     Magic8BallGame _magic8Ball;
     MiniGameId     _activeMiniGame = MiniGameId::NONE;
 
-    // IMU polling
-    uint32_t _imuPollAccum  = 0;
-    float    _prevAccMag    = 1.0f;
-    int      _shakeCount    = 0;
-    uint32_t _shakeWindowMs = 0;
+    // IMU polling + motion state
+    uint32_t _imuPollAccum   = 0;
+    float    _prevAccMag     = 1.0f;
+    int      _shakeCount     = 0;
+    uint32_t _shakeWindowMs  = 0;
+    bool     _wasNearGravity = true;
+    uint32_t _stillMs        = 0;    // consecutive ms near 1g
+    uint32_t _activeMs       = 0;    // consecutive ms away from 1g
+    uint32_t _walkMs         = 0;    // ms of walk-like oscillation
+    uint32_t _pickupCooldown  = 0;
+    uint32_t _putdownCooldown = 0;
+    uint32_t _walkingCooldown = 0;
 
     // Mic polling
     uint32_t _micPollAccum  = 0;

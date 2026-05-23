@@ -123,6 +123,8 @@ private:
     void _applyTransitionOverlay(uint32_t deltaMs);
     SpriteFrame _selectSprite(LifeStage stage, GotchiType type, uint8_t frame);
 
+    CreatureState _prevBehaviourState = CreatureState::IDLE;
+
     // Speech bubble state
     char     _speechText[56]  = {};
     uint32_t _speechRemMs     = 0;

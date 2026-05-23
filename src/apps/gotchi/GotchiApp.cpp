@@ -234,6 +234,8 @@ void GotchiApp::_pollMic(uint32_t deltaMs) {
     if (_micPollAccum < 100) return;
     _micPollAccum = 0;
 
+    if (_micZCooldown > 100) _micZCooldown -= 100; else _micZCooldown = 0;
+
     static int16_t buf[32];
     if (!M5.Mic.record(buf, 32, 8000)) return;
 
@@ -241,4 +243,14 @@ void GotchiApp::_pollMic(uint32_t deltaMs) {
     for (auto& s : buf) sumSq += (int32_t)s * s;
     float rms = sqrtf((float)sumSq / 32);
     _pet.onNoiseLevel(rms);
+
+    if (_micZCooldown == 0) {
+        if (rms >= 2000.0f) {
+            _renderer.setZImpulse(0.35f, 0.012f, 2500);  // loud → jolt close (startled)
+            _micZCooldown = 2000;
+        } else if (rms >= 300.0f) {
+            _renderer.setZImpulse(1.2f, 0.004f, 1500);   // soft → gentle stir
+            _micZCooldown = 2000;
+        }
+    }
 }

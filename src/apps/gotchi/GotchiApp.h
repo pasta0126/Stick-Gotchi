@@ -46,6 +46,7 @@ private:
 
     // Mic polling
     uint32_t _micPollAccum  = 0;
+    uint32_t _micZCooldown  = 0;
 
     void _pollImu(uint32_t deltaMs);
     void _pollImuForBall(uint32_t deltaMs);

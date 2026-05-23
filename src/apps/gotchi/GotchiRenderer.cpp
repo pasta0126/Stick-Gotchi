@@ -717,6 +717,16 @@ void GotchiRenderer::_drawFrame() {
             _drawEmote(_pet->mood(), (int)_posX, spriteY - 2);
         }
 
+        {
+            CreatureState curState = _pet->behaviourState();
+            if (curState != _prevBehaviourState &&
+                (curState == CreatureState::REACTING || curState == CreatureState::STARTLED) &&
+                _speechRemMs == 0) {
+                triggerReaction();
+            }
+            _prevBehaviourState = curState;
+        }
+
         _drawSpeechBubble(delta);
 
         if (_pet->isSleeping() && _pet->stage() != LifeStage::EGG) {

@@ -155,19 +155,15 @@ void CreatureSelectorApp::_drawFrame() {
     }
 
     // ── Tagline ───────────────────────────────────────────────────────────
-    c.drawFastHLine(0, 108, W, dim);
-    c.setTextFont(1);
-    c.setTextColor(dim + 0x101010, BG);
-    c.drawCenterString(TAGLINES[ci], W / 2, 113);
+    c.drawFastHLine(0, 102, W, dim);
+    c.setTextFont(2);
+    c.setTextColor(col, BG);
+    c.drawCenterString(TAGLINES[ci], W / 2, 106);
 
     // ── Button hints ──────────────────────────────────────────────────────
+    c.setTextFont(1);
     c.setTextColor(dim, BG);
-    c.setCursor(4, H - 10);
-    c.print("B:ciclar");
-    c.setCursor(W / 2 - 24, H - 10);
-    c.print("A:elegir");
-    c.setCursor(W - 52, H - 10);
-    c.print("Blong:atras");
+    c.drawCenterString("B: cambiar   A: elegir", W / 2, H - 9);
 
     _display->push();
     _display->release();

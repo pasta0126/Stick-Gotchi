@@ -66,7 +66,15 @@ public:
     // ── Legacy compat stubs (renderer uses these until SGOTCHI-72) ────
     LifeStage   stage()                const { return LifeStage::ADULT; }
     AdultForm   adultForm()            const { return AdultForm::NORMAL; }
-    GotchiType  gotchiType()           const { return GotchiType::ORGANIC; }
+    GotchiType  gotchiType()           const {
+        switch (_creatureType) {
+        case CreatureType::BYTEE:   return GotchiType::CYBER;
+        case CreatureType::CTHULHU: return GotchiType::SOUL;
+        case CreatureType::JACK:    return GotchiType::CRYSTAL;
+        case CreatureType::LUMI:    return GotchiType::ENERGY;
+        default:                    return GotchiType::ORGANIC;
+        }
+    }
     PetStats    stats()                const { return {}; }
     uint8_t     dirtyness()            const { return 0; }
     uint8_t     moodScore()            const { return 65; }

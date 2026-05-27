@@ -6,6 +6,7 @@ void AppManager::begin(ButtonManager& buttons) {
 
 void AppManager::launchApp(AppBase* app) {
     if (_current) {
+        _current->suspend();   // pause render tasks before delete to avoid mutex deadlock
         _current->destroy();
     }
     _current = app;

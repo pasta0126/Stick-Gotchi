@@ -800,6 +800,28 @@ GotchiRenderer::SpritePalette GotchiRenderer::_buildPalette(const GotchiVisual& 
         val_primary = min(255, val_primary + 20);
     }
 
+    // Pin hue to creature canonical color (overrides visual_seed hue)
+    if (_pet) {
+        switch (_pet->creature()) {
+        case CreatureType::BYTEE:
+            hue_primary = 4;  sat_primary   = min(sat_primary,   (uint8_t)220);
+            hue_secondary = 2; sat_secondary = min(sat_secondary, (uint8_t)180);
+            break;
+        case CreatureType::CTHULHU:
+            hue_primary = 14; sat_primary   = min(sat_primary,   (uint8_t)200);
+            hue_secondary = 12; sat_secondary = min(sat_secondary, (uint8_t)160);
+            break;
+        case CreatureType::JACK:
+            sat_primary = 15; sat_secondary = 10;
+            break;
+        case CreatureType::LUMI:
+            hue_primary = 26; sat_primary   = min(sat_primary,   (uint8_t)230);
+            hue_secondary = 23; sat_secondary = min(sat_secondary, (uint8_t)190);
+            break;
+        default: break;
+        }
+    }
+
     pal.primary = hsvToRgb565(hue_primary, sat_primary, val_primary);
     pal.secondary = hsvToRgb565(hue_secondary, sat_secondary, val_secondary);
     pal.dark = hsvToRgb565(hue_primary, 200, 100);

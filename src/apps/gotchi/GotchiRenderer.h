@@ -19,6 +19,7 @@
 #include "../../generated/sprites_8magicball.h"
 #include "../../gotchi/GotchiDNA.h"
 #include "../../core/DisplayManager.h"
+#include "GotchiFaceSprites.h"
 
 class GotchiRenderer {
 public:
@@ -122,6 +123,7 @@ private:
     void _drawSpeechBubble(uint32_t deltaMs);
     void _applyTransitionOverlay(uint32_t deltaMs);
     SpriteFrame _selectSprite(LifeStage stage, GotchiType type, uint8_t frame);
+    void _drawFacePortrait(CreatureType ct, Mood mood, uint8_t animFrame);
 
     CreatureState _prevBehaviourState = CreatureState::IDLE;
 

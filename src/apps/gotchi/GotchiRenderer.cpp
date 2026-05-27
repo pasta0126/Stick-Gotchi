@@ -670,16 +670,15 @@ void GotchiRenderer::_drawFrame() {
             _animAccumMs -= FRAME_INTERVAL_MS;
             _animFrame = (_animFrame + 1) % 2;
         }
-        _updatePosition(delta);
+        _updateZ(delta);
 
-        GotchiVisual vis = decodeVisual(_pet->currentID().visual_seed);
-        GotchiType type  = _pet->gotchiType();
-
-        _drawCreatureAtmosphere(delta);
-        SpritePalette pal = _buildPalette(vis, _pet->stage(), type);
-
-        // Manage egg animation state
         if (_pet->stage() == LifeStage::EGG) {
+            _updatePosition(delta);
+            GotchiVisual vis = decodeVisual(_pet->currentID().visual_seed);
+            GotchiType   type = _pet->gotchiType();
+            _drawCreatureAtmosphere(delta);
+            SpritePalette pal = _buildPalette(vis, _pet->stage(), type);
+
             if (_pet->isEggHatched()) {
                 _animTag = AnimTag::HATCH;
                 if (!_hatchDone) {
@@ -695,26 +694,24 @@ void GotchiRenderer::_drawFrame() {
             } else {
                 _animTag = AnimTag::IDLE;
             }
-        }
 
-        uint8_t frameIdx = (_animTag == AnimTag::HATCH) ? _hatchFrame : _animFrame;
-        SpriteFrame frame = _selectSprite(_pet->stage(), type, frameIdx);
+            uint8_t frameIdx = (_animTag == AnimTag::HATCH) ? _hatchFrame : _animFrame;
+            SpriteFrame frame = _selectSprite(_pet->stage(), type, frameIdx);
 
-        // Z-depth: scale sprite based on _zDepth (0=FAR, 1=NORMAL, 2=PEEK)
-        _updateZ(delta);
-        float screenH = 27.0f + (_zDepth / 2.0f) * 108.0f;
-        frame.scale = (uint8_t)max(1, (int)roundf(screenH / (float)frame.h));
+            float screenH = 27.0f + (_zDepth / 2.0f) * 108.0f;
+            frame.scale = (uint8_t)max(1, (int)roundf(screenH / (float)frame.h));
 
-        // X: use wandering position; Y: centered vertically (Z controls apparent size)
-        int spriteX = (int)_posX - (frame.w * frame.scale) / 2;
-        spriteX = max(PLAY_X0, min(PLAY_X1 - frame.w * frame.scale, spriteX));
-        int spriteY = 67 - (frame.h * frame.scale) / 2;  // centered; overflows at PEEK
+            int spriteX = (int)_posX - (frame.w * frame.scale) / 2;
+            spriteX = max(PLAY_X0, min(PLAY_X1 - frame.w * frame.scale, spriteX));
+            int spriteY = 67 - (frame.h * frame.scale) / 2;
 
-        _drawSprite(frame.data, frame.w, frame.h, spriteX, spriteY, frame.scale, pal);
-        _lastSpriteTopY = spriteY;
-
-        if (_pet->mood() != Mood::NEUTRAL && _pet->stage() != LifeStage::EGG) {
-            _drawEmote(_pet->mood(), (int)_posX, spriteY - 2);
+            _drawSprite(frame.data, frame.w, frame.h, spriteX, spriteY, frame.scale, pal);
+            _lastSpriteTopY = spriteY;
+        } else {
+            // Full-screen face portrait — covers the entire canvas including background
+            _drawFacePortrait(_pet->creature(), _pet->mood(), _animFrame);
+            _posX           = 120.0f;  // keep speech bubble centered
+            _lastSpriteTopY = 135;     // places speech bubble at bottom of screen
         }
 
         {
@@ -730,7 +727,7 @@ void GotchiRenderer::_drawFrame() {
         _drawSpeechBubble(delta);
 
         if (_pet->isSleeping() && _pet->stage() != LifeStage::EGG) {
-            _drawSleepZs((int)_posX + 10, spriteY);
+            _drawSleepZs(195, 15);  // fixed top-right for portrait mode
         }
 
         if (_pet->isAgony()) {
@@ -752,6 +749,31 @@ void GotchiRenderer::_drawFrame() {
     _canvas->pushSprite(0, 0);
     _display->release();
 
+}
+
+void GotchiRenderer::_drawFacePortrait(CreatureType ct, Mood mood, uint8_t animFrame) {
+    uint8_t ci       = (uint8_t)ct;
+    uint8_t faceMood = FACE_MOOD_MAP[(uint8_t)mood];
+    const uint8_t*  rle = getFaceFrameData(ci, faceMood, animFrame);
+    const uint16_t* pal = getFacePalette(ci);
+
+    int px = 0, py = 0;
+    const int total = FACE_W * FACE_H;
+    int drawn = 0;
+    while (drawn < total) {
+        uint8_t count = *rle++;
+        uint16_t color = pal[*rle++];
+        int rem = count;
+        while (rem > 0) {
+            int line_rem = FACE_W - px;
+            int take = rem < line_rem ? rem : line_rem;
+            _canvas->fillRect(px * 2, py * 2, take * 2, 2, color);
+            px += take;
+            rem -= take;
+            drawn += take;
+            if (px >= FACE_W) { px = 0; py++; }
+        }
+    }
 }
 
 GotchiRenderer::SpritePalette GotchiRenderer::_buildPalette(const GotchiVisual& vis, LifeStage stage, GotchiType type) {

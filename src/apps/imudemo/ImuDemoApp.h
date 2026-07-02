@@ -16,7 +16,7 @@ public:
     void destroy()                    override {}
     bool onInput(const InputEvent& e) override {
         if (e.button == ButtonId::B && e.action == ButtonAction::LONG_PRESS) {
-            if (_menuCallback) _menuCallback();
+            if (_homeCallback) _homeCallback();
             return true;
         }
         return false;

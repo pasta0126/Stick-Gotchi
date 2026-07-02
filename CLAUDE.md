@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Stick-Gotchi is a self-contained Tamagotchi-style virtual pet firmware for the **M5Stick C Plus2** (ESP32-based). The device IS the gotchi's world — no phone app required. The gotchi lives, grows, evolves, and dies entirely on the device. It features pixel art visuals generated from a deterministic seed, a lineage/inheritance system across generations, and environmental interaction via microphone and IMU.
+Stick-Gotchi is a minimalist multi-tool launcher firmware for the **M5Stick C Plus2** (ESP32-based). There is no virtual pet — the home screen is a horizontal, circular **carousel of tiles** (icon + label); selecting a tile launches a self-contained mini-app (Coin Flip, Magic 8-Ball, IMU demos). No phone app, no persistence of care/stats — this is a pocket toy, not a companion.
 
 Full design spec: `docs/GDD.md` | Technical architecture: `docs/TECH.md`
 
@@ -70,97 +70,53 @@ Target board: `m5stick-c` (M5Unified detects Plus2 at runtime).
 
 | Peripheral | Detail |
 |---|---|
-| Display | 135×240 TFT, landscape via `setRotation(3)` |
+| Display | 135×240 TFT, landscape via `setRotation(1)` |
 | IMU | MPU6886 — accessed via `M5.Imu.getAccel()` / `getGyro()` |
-| Buttons | A (front), B (side), C (power — menu toggle) |
+| Buttons | A (front, upper side), B (top), C / Power (lower side, `M5.BtnPWR`) |
 | LED | Single red LED (no RGB) |
-| BLE | NimBLE-Arduino (lighter than ESP32 default BLE stack) |
+
+Physical layout: B is the button on top of the device; A and C are stacked on one side, A above C.
 
 ## Architecture
 
 ```
 main.cpp
-  ├── ButtonManager   — polls BtnA/BtnB, fires InputEvent (short/long press)
+  ├── ButtonManager   — polls BtnA/BtnB only, fires InputEvent (short/long press)
   ├── DisplayManager  — FreeRTOS mutex + M5Canvas framebuffer (240×135)
   ├── AppManager      — owns one active AppBase*, routes input callbacks
-  ├── MenuOverlay     — full-screen list UI, runs on main loop thread
-  ├── BleService      — NimBLE GATT server (start/stop per app)
+  ├── handlePowerButton() — standalone short/long detection on M5.BtnPWR (reboot/power off)
   └── Apps (static instances, no heap alloc)
-       ├── GotchiApp  → GotchiPet + GotchiRenderer (FreeRTOS task, Core 0)
-       │                + GotchiDNA + GotchiShake + GotchiAudio + GotchiSleep
-       ├── StatsApp   → StatsRenderer (3 tabs: status, lineage, history)
-       └── ImuDemoApp → reads IMU, draws bar chart
+       ├── CarouselHome   — root launcher, cyclic tile carousel
+       ├── CoinFlipApp    — FlipCoinGame + sprite draw
+       ├── Magic8BallApp  — Magic8BallGame + IMU shake polling + sprite draw
+       └── ImuDemoApp     — Accelerometer / Gyroscope / Orientation (3 tiles, one instance)
 ```
-
-### New modules (v2)
-
-| Module | Responsibility |
-|---|---|
-| `GotchiDNA` | GotchiID (64-bit), visual seed, lineage mutation |
-| `GotchiLineage` | NVS persistence for state + 5 ancestors + heritage bonuses |
-| `GotchiShake` | IMU delta-g detection → ShakeLevel enum |
-| `GotchiAudio` | Mic RMS sampling (FreeRTOS task, Core 0) → noise events |
-| `GotchiSleep` | Day/night schedule, sleep triggers, sleep protection |
-| `GotchiSprites` | Pixel art sprite data (uint8 palette indices, per stage) |
 
 ### App lifecycle
 
 Every app implements `AppBase`:
-- `init()` — called on launch; start tasks, BLE, etc.
-- `update(deltaMs)` — called every loop tick when foreground and not suspended
-- `suspend()` / `resume()` — called when menu opens/closes over the app
+- `init()` — called on launch; reset per-launch state
+- `update(deltaMs)` — called every loop tick when foreground
+- `suspend()` / `resume()` — called if another mechanism pauses this app (currently unused, no overlay exists)
 - `destroy()` — called when another app replaces this one
 - `onInput(event)` — receives ButtonA/B events; return `true` to consume
+- `setHomeCallback(fn)` — apps other than `CarouselHome` call this on Btn B long to return home
 
 ### Button routing
 
-- **Button C** is captured in `loop()` directly — always toggles the menu.
-- **Buttons A/B** flow through `ButtonManager` → single callback slot.
-  - When menu closed: `AppManager` routes events to `currentApp->onInput()`.
-  - When menu open: `MenuOverlay` steals the callback slot.
-  - On menu close: `AppManager` re-registers its callback via `resumeCurrent()`.
+- **Button C / Power** (`M5.BtnPWR`) is handled entirely in `main.cpp::handlePowerButton()`, outside `ButtonManager` and outside `AppManager` — short press reboots (`ESP.restart()`), long press (700ms) powers off (`M5.Power.powerOff()`). It never reaches any app.
+- **Buttons A/B** flow through `ButtonManager` → single callback slot → `AppManager::_current->onInput()`.
+- `CarouselHome`: Btn B short advances the carousel, Btn A short launches the centered tile, Btn B long is a no-op (Home has no level above it).
+- Every other app: Btn B long calls `_homeCallback()` → `AppManager::launchApp(&carouselHome)`.
 
 ### Display mutex
 
-`DisplayManager::acquire()` / `release()` must bracket every draw sequence.  
-`GotchiRenderer` runs as a FreeRTOS task on Core 0. `MenuOverlay` calls `vTaskSuspend` (via `AppManager::suspendCurrent`) before drawing, eliminating contention.
+`DisplayManager::acquire()` / `release()` must bracket every draw sequence. No app currently runs its own FreeRTOS render task — all apps draw inline from `update(deltaMs)`, throttled to ~30fps via an accumulated `deltaMs` counter (see `ImuDemoApp`, `CoinFlipApp`, `Magic8BallApp`).
 
 ### Adding a new app
 
 1. Create `src/apps/myapp/MyApp.h/.cpp` inheriting `AppBase`.
-2. Add `static MyApp myApp;` in `main.cpp`.
-3. Call `myApp.inject(...)` for dependencies.
-4. Add `menu.addItem({ "My App", MenuItemType::APP, []() -> AppBase* { return &myApp; }, nullptr });`.
-5. No changes needed to any core file.
-
-## Button mapping (GotchiApp)
-
-| Button | Gesture | Action |
-|---|---|---|
-| Btn B | Short | Cycle active icon in action bar |
-| Btn A | Short | Execute selected action |
-| Btn A | Long | Toggle action bar visibility |
-| Btn C | Short | Open system menu |
-
-## BLE Protocol (secondary — future gotchi-to-gotchi)
-
-The device is self-contained. BLE is preserved for future gotchi-to-gotchi interaction but is not required for core gameplay.
-
-| Direction | UUID suffix | Format |
-|---|---|---|
-| Device→App (NOTIFY) | `beb5483e…` | 7 bytes: `[mood, hunger, thirst, energy, steps_lo, steps_hi, flags]` |
-| App→Device (CMD) | `6e400002…` | 1 byte: `0x01`=feed, `0x02`=drink, `0x03`=pet, `0x04`=play |
-| App→Device (BAT) | `6e400003…` | 2 bytes: `[level, charging]` |
-| App→Device (CTX) | `6e400004…` | 2 bytes: `[hour, tempC]` |
-
-Service UUID: `4fafc201-1fb5-459e-8fcc-c5c9c3319100`
-
-## Gotchi moods
-
-Mood byte values (must stay in sync with Android app):
-`NEUTRAL=0, HAPPY=1, SICK=2, PENSIVE=3, SAD=4, SLEEPING=5, EXCITED=6, LAUGHING=7, DIZZY=8, ANNOYED=9, ANGRY=10, STARTLED=11, SCARED=12`
-
-> `DEFAULT` fue renombrado a `NEUTRAL` porque `Arduino.h` define `#define DEFAULT 1` lo que rompe el enum.
-
-Priority (highest first): `SCARED > SICK > SAD > PENSIVE/SLEEPING > HAPPY > DEFAULT`.  
-Temporary moods (from pet/shake/play) override base mood for a timed duration.
+2. Add `static MyApp myApp;` in `main.cpp`, call `myApp.inject(&display)`.
+3. Wire `myApp.setHomeCallback([]() { apps.launchApp(&carouselHome); });`.
+4. Add `carouselHome.addTile({ "My App", myIconFn, []() -> AppBase* { return &myApp; } });`.
+5. No changes needed to any core file — new apps are just new tiles.

@@ -2,9 +2,9 @@
 #include <stdint.h>
 
 enum class ButtonId : uint8_t {
-    A = 0,  // M5 front button — navigation / interaction
-    B = 1,  // Side button    — back / cancel
-    C = 2,  // Power button   — menu toggle (handled in main loop)
+    A = 0,  // Front button — SHORT: select/confirm (positive input). LONG: reserved.
+    B = 1,  // Side button  — SHORT: advance/navigate. LONG: cancel/back to CarouselHome.
+    C = 2,  // Power button — power off / restart ONLY, never UI. Handled directly in main loop.
 };
 
 enum class ButtonAction : uint8_t {

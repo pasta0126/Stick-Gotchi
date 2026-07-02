@@ -135,8 +135,15 @@ def generate(json_path_str, output_dir_str=None, emote_mode=False):
 
     sheet_w, sheet_h, pixels = _load_sheet(png_path)
     frames_dict = data['frames']
+    if isinstance(frames_dict, list):
+        # Aseprite MCP export uses the "array" frames format instead of "hash".
+        frames_dict = {i: f for i, f in enumerate(frames_dict)}
     frame_keys  = list(frames_dict.keys())
-    tags        = data['meta']['frameTags']
+    tags        = data['meta'].get('frameTags')
+    if not tags:
+        # Aseprite MCP sprite-sheet export doesn't preserve tags — fall back
+        # to a single tag spanning every exported frame.
+        tags = [{'name': 'default', 'from': 0, 'to': len(frame_keys) - 1}]
 
     # Output path
     if output_dir_str:

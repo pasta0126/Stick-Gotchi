@@ -28,12 +28,12 @@ public:
     // Return true to consume the event (prevent further dispatch).
     virtual bool onInput(const InputEvent& /*event*/) { return false; }
 
-    // Label shown in the menu.
+    // Label shown when this app is a carousel tile.
     virtual const char* getName() const = 0;
 
-    // Called by main.cpp so apps can request the menu to open (e.g. on BtnB long press).
-    void setMenuCallback(std::function<void()> cb) { _menuCallback = std::move(cb); }
+    // Called by main.cpp so apps can return to CarouselHome (BtnB long press).
+    void setHomeCallback(std::function<void()> cb) { _homeCallback = std::move(cb); }
 
 protected:
-    std::function<void()> _menuCallback;
+    std::function<void()> _homeCallback;
 };

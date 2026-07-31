@@ -4,6 +4,6 @@
 # IDE
 .vscode/
 
-# Claude Code / OMC tooling
-.claude/
+# Claude Code / OMC tooling (config under .claude/ is versioned; only local overrides are ignored)
+.claude/settings.local.json
 .omc/

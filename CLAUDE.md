@@ -1,17 +1,21 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Read and follow `AGENTS.md` — it is the canonical, tool-neutral source for project purpose, architecture map, commands, and workflow rules. This file only adds behavior specific to Claude Code and the Plane integration.
 
-## Project
+## Claude-specific behavior
 
-Stick-Gotchi is a minimalist multi-tool launcher firmware for the **M5Stick C Plus2** (ESP32-based). There is no virtual pet — the home screen is a horizontal, circular **carousel of tiles** (icon + label); selecting a tile launches a self-contained mini-app (Coin Flip, Magic 8-Ball, IMU demos). No phone app, no persistence of care/stats — this is a pocket toy, not a companion.
-
-Full design spec: `docs/GDD.md` | Technical architecture: `docs/TECH.md`
+- Read `AGENTS.md`, `docs/GDD.md`, and `docs/TECH.md` before proposing structural changes.
+- Use subagents (`Explore`, `general-purpose`) for open-ended repo exploration so it doesn't consume the main context window.
+- Do not implement a non-trivial feature before its `specs/` entry (if one exists or is warranted per `AGENTS.md`) is clear.
+- Review the final diff before reporting a task complete.
+- Keep changes scoped to the selected Plane issue or task.
 
 ## Plane Workflow (task management)
 
 Project: **SGOTCHI** — `https://plane.northernarchive.com/northern-archive/projects/6444bf4f-f5fe-4ef7-b865-6fd6f39adfd0/issues/`
 User: **pasta0126** (ID: `2be9cbeb-4b1b-42aa-8a9c-1c3028797d95`)
+
+Plane is the board of record for issue status and assignment. For non-trivial issues, pair the issue with a `specs/NNN-short-name/` folder (see `AGENTS.md` § Specs and Plane) so the technical detail is versioned in the repo, not only in a Plane comment.
 
 ### Rules for agents
 
@@ -53,20 +57,7 @@ def plane(method, path, body=None):
         return json.loads(r.read())
 ```
 
-## Build
-
-Uses **PlatformIO**. From the repo root:
-
-```bash
-pio run                        # compile
-pio run --target upload        # flash to device
-pio device monitor             # serial monitor (115200 baud)
-pio run --target upload && pio device monitor   # flash + monitor
-```
-
-Target board: `m5stick-c` (M5Unified detects Plus2 at runtime).
-
-## Hardware (M5Stick C Plus2)
+## Hardware quick reference (M5Stick C Plus2)
 
 | Peripheral | Detail |
 |---|---|
@@ -77,43 +68,9 @@ Target board: `m5stick-c` (M5Unified detects Plus2 at runtime).
 
 Physical layout: B is the button on top of the device; A and C are stacked on one side, A above C.
 
-## Architecture
+Button C / Power is handled entirely in `main.cpp::handlePowerButton()`, outside `ButtonManager`/`AppManager` — short press reboots, long press (700ms) powers off. It never reaches an app. Buttons A/B flow through `ButtonManager` to the active app's `onInput()`.
 
-```
-main.cpp
-  ├── ButtonManager   — polls BtnA/BtnB only, fires InputEvent (short/long press)
-  ├── DisplayManager  — FreeRTOS mutex + M5Canvas framebuffer (240×135)
-  ├── AppManager      — owns one active AppBase*, routes input callbacks
-  ├── handlePowerButton() — standalone short/long detection on M5.BtnPWR (reboot/power off)
-  └── Apps (static instances, no heap alloc)
-       ├── CarouselHome   — root launcher, cyclic tile carousel
-       ├── CoinFlipApp    — FlipCoinGame + sprite draw
-       ├── Magic8BallApp  — Magic8BallGame + IMU shake polling + sprite draw
-       └── ImuDemoApp     — Accelerometer / Gyroscope / Orientation (3 tiles, one instance)
-```
-
-### App lifecycle
-
-Every app implements `AppBase`:
-- `init()` — called on launch; reset per-launch state
-- `update(deltaMs)` — called every loop tick when foreground
-- `suspend()` / `resume()` — called if another mechanism pauses this app (currently unused, no overlay exists)
-- `destroy()` — called when another app replaces this one
-- `onInput(event)` — receives ButtonA/B events; return `true` to consume
-- `setHomeCallback(fn)` — apps other than `CarouselHome` call this on Btn B long to return home
-
-### Button routing
-
-- **Button C / Power** (`M5.BtnPWR`) is handled entirely in `main.cpp::handlePowerButton()`, outside `ButtonManager` and outside `AppManager` — short press reboots (`ESP.restart()`), long press (700ms) powers off (`M5.Power.powerOff()`). It never reaches any app.
-- **Buttons A/B** flow through `ButtonManager` → single callback slot → `AppManager::_current->onInput()`.
-- `CarouselHome`: Btn B short advances the carousel, Btn A short launches the centered tile, Btn B long is a no-op (Home has no level above it).
-- Every other app: Btn B long calls `_homeCallback()` → `AppManager::launchApp(&carouselHome)`.
-
-### Display mutex
-
-`DisplayManager::acquire()` / `release()` must bracket every draw sequence. No app currently runs its own FreeRTOS render task — all apps draw inline from `update(deltaMs)`, throttled to ~30fps via an accumulated `deltaMs` counter (see `ImuDemoApp`, `CoinFlipApp`, `Magic8BallApp`).
-
-### Adding a new app
+## Adding a new app
 
 1. Create `src/apps/myapp/MyApp.h/.cpp` inheriting `AppBase`.
 2. Add `static MyApp myApp;` in `main.cpp`, call `myApp.inject(&display)`.

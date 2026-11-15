@@ -1,8 +1,8 @@
 # Specs
 
-Plane (project SGOTCHI) is the board of record for what's in progress and who owns it — see `CLAUDE.md` § Plane Workflow. This directory holds the *versioned technical detail* for issues that are more than a small, self-contained fix: new mini-apps, changes that touch multiple core files, or anything where the design isn't obvious from the code.
+This directory holds the *versioned technical detail* for tasks that are more than a small, self-contained fix: new mini-apps, changes that touch multiple core files, or anything where the design isn't obvious from the code.
 
-Trivial fixes (typo, single-file bug fix, sprite tweak) don't need a folder here — just reference the Plane issue when you do the work.
+Trivial fixes (typo, single-file bug fix, sprite tweak) don't need a folder here — just do the work.
 
 ## Structure
 
@@ -14,7 +14,7 @@ specs/
     └── tasks.md   # breakdown into small, verifiable steps — only for multi-step work
 ```
 
-Number folders sequentially (`001-`, `002-`, ...). Link the Plane issue ID at the top of `spec.md` so the two stay connected.
+Number folders sequentially (`001-`, `002-`, ...).
 
 ## `spec.md` template
 
@@ -23,9 +23,6 @@ Number folders sequentially (`001-`, `002-`, ...). Link the Plane issue ID at th
 
 ## Status
 Draft | Ready | In progress | Completed
-
-## Plane issue
-SGOTCHI-NNN
 
 ## Objective
 What this must accomplish.

@@ -27,7 +27,7 @@ Relevant alternatives and why they were rejected.
 Positive and negative consequences.
 
 ## References
-Related specs/, Plane issues, or docs.
+Related specs/ or docs.
 ```
 
 No ADRs exist yet — this directory is ready for the first one.

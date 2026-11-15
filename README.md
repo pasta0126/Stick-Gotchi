@@ -29,10 +29,10 @@ This compiles the firmware. There is no automated test suite (embedded firmware,
 - `docs/GDD.md` — design spec (what the product is)
 - `docs/TECH.md` — technical architecture
 - `docs/decisions/` — architecture decision records
-- `AGENTS.md` — instructions for coding agents (architecture map, workflow, commands)
-- `CLAUDE.md` — Claude Code specific behavior and the Plane task-tracking workflow
+- `AGENTS.md` — instructions for coding agents (architecture map, workflow, commands, hardware reference)
+- `CLAUDE.md` — imports `AGENTS.md`
 - `specs/` — versioned spec/plan/tasks detail for non-trivial features
 
 ## Status
 
-Actively developed; current architecture is the carousel launcher (see `docs/TECH.md`). Task tracking lives in Plane (project SGOTCHI).
+Actively developed; current architecture is the carousel launcher (see `docs/TECH.md`).

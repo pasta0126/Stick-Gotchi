@@ -4,7 +4,7 @@
 
 Stick-Gotchi is minimalist multi-tool launcher firmware for the M5Stick C Plus2 (ESP32-based, PlatformIO/Arduino). The home screen is a horizontal, circular carousel of tiles; selecting a tile launches a self-contained mini-app (Coin Flip, Magic 8-Ball, IMU demos). There is no virtual pet, no phone app, no persistence of state — a pocket toy, not a companion.
 
-Design spec: `docs/GDD.md`. Technical architecture: `docs/TECH.md`. Claude-specific workflow: `CLAUDE.md`.
+Design spec: `docs/GDD.md`. Technical architecture: `docs/TECH.md`. `CLAUDE.md` only imports this file.
 
 ## Technology
 
@@ -23,23 +23,23 @@ Design spec: `docs/GDD.md`. Technical architecture: `docs/TECH.md`. Claude-speci
 - `art/` — Aseprite sources, exports, and sprite tooling.
 - `docs/` — stable design/architecture docs (`GDD.md`, `TECH.md`).
 - `docs/decisions/` — ADRs for hard-to-reverse architectural decisions.
-- `specs/` — versioned spec/plan/tasks detail for non-trivial features (see "Specs and Plane" below).
+- `specs/` — versioned spec/plan/tasks detail for non-trivial features (see "Specs" below).
 - `scripts/verify.sh` — the one validation command; run it before calling any change done.
 
 ## Required workflow
 
-1. Read this file and `CLAUDE.md`.
+1. Read this file, `docs/GDD.md` and `docs/TECH.md` before proposing structural changes.
 2. If the change touches a non-trivial feature, check `specs/` for an active spec covering it.
 3. Read the relevant existing app/module before modifying it — reuse the `AppBase` lifecycle pattern rather than inventing a new one.
-4. Make the change, scoped to one task or one Plane issue at a time.
+4. Make the change, scoped to one task at a time.
 5. Run `./scripts/verify.sh` (compiles via `pio run`).
 6. For hardware-observable behavior (button input, display rendering, IMU, LED), state plainly that it needs on-device verification — a successful compile is not proof the feature works.
 7. Update `docs/GDD.md` / `docs/TECH.md` / the relevant `specs/` files if the change affects them.
 8. Report: what changed, files touched, validation run, and anything that still needs manual/hardware verification.
 
-## Specs and Plane
+## Specs
 
-Task tracking lives in Plane (see `CLAUDE.md` for the project ID, states, and API helper) — that stays the board of record for status and assignment. For any issue that is more than a small, self-contained fix, add a `specs/NNN-short-name/` folder with `spec.md` (what/why) and, if the design isn't obvious, `plan.md` (how) and `tasks.md` (breakdown). Link the Plane issue ID in `spec.md`. Trivial fixes (typo, small bug, single-file tweak) don't need a spec — just do the work and reference the Plane issue in the commit/comment.
+For any task that is more than a small, self-contained fix, add a `specs/NNN-short-name/` folder with `spec.md` (what/why) and, if the design isn't obvious, `plan.md` (how) and `tasks.md` (breakdown). Do not implement a non-trivial feature before its spec is clear. Trivial fixes (typo, small bug, single-file tweak) don't need a spec. See `specs/README.md` for templates.
 
 ## Commands
 
@@ -67,10 +67,12 @@ Task tracking lives in Plane (see `CLAUDE.md` for the project ID, states, and AP
 
 - No dedicated automated test suite exists (embedded firmware, no test framework wired up) — `pio run` (a successful compile) is the required gate for every change; hardware behavior needs manual verification on an M5Stick C Plus2.
 - Do not hand-edit files under `src/generated/` — regenerate them via `tools/spr2c.py`.
-- Do not add a new app by touching core files — follow the "Adding a new app" steps in `CLAUDE.md` (new files + tile registration only).
-- Do not commit device-specific overrides (e.g. a different `upload_port`) or secrets (Plane API key).
+- Do not add a new app by touching core files — follow the "Adding a new app" steps below (new files + tile registration only).
+- Do not commit device-specific overrides (e.g. a different `upload_port`) or secrets (API keys, tokens).
 - No `git push` or merge without explicit authorization.
-- Do not mark a Plane issue or task done if `pio run` fails or a hardware-dependent behavior hasn't been verified — say so instead.
+- Do not mark a task done if `pio run` fails or a hardware-dependent behavior hasn't been verified — say so instead.
+- Review the final diff before reporting a task complete.
+- For open-ended repo exploration, prefer subagents so the main context stays small.
 
 ## Definition of done
 
@@ -80,4 +82,24 @@ A task is done only when:
 - behavior that can only be observed on hardware is either verified on-device or explicitly flagged as unverified;
 - changes are scoped to the task at hand, no unrelated refactors;
 - `docs/` and any relevant `specs/` files stay accurate;
-- the Plane issue is moved to the correct state per `CLAUDE.md`.
+
+## Hardware quick reference (M5Stick C Plus2)
+
+| Peripheral | Detail |
+|---|---|
+| Display | 135×240 TFT, landscape via `setRotation(1)` |
+| IMU | MPU6886 — accessed via `M5.Imu.getAccel()` / `getGyro()` |
+| Buttons | A (front, upper side), B (top), C / Power (lower side, `M5.BtnPWR`) |
+| LED | Single red LED (no RGB) |
+
+Physical layout: B is the button on top of the device; A and C are stacked on one side, A above C.
+
+Button C / Power is handled entirely in `main.cpp::handlePowerButton()`, outside `ButtonManager`/`AppManager` — short press reboots, long press (700ms) powers off. It never reaches an app. Buttons A/B flow through `ButtonManager` to the active app's `onInput()`.
+
+## Adding a new app
+
+1. Create `src/apps/myapp/MyApp.h/.cpp` inheriting `AppBase`.
+2. Add `static MyApp myApp;` in `main.cpp`, call `myApp.inject(&display)`.
+3. Wire `myApp.setHomeCallback([]() { apps.launchApp(&carouselHome); });`.
+4. Add `carouselHome.addTile({ "My App", myIconFn, []() -> AppBase* { return &myApp; } });`.
+5. No changes needed to any core file — new apps are just new tiles.
